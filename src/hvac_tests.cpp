@@ -4,6 +4,13 @@
 #include "main.h"
 #include "hvac_logic.h"
 
+// -- Mocking infrastructure for tests --
+bool g_isTesting = false;
+unsigned long g_mockMillis = 0;
+TimeInfo g_mockTime;
+float g_mockIndoorTempF, g_mockOutdoorTempF;
+bool g_mockRelayStates[10] = {LOW,LOW,LOW,LOW,LOW,LOW,LOW,LOW,LOW,LOW};
+
 extern Schedule programSchedule;
 extern bool vacationModeActive;
 extern float currentTargetTemperature;

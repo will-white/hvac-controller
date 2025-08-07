@@ -3,6 +3,7 @@
 #include <cmath>
 #include "config.h"
 #include "main.h"
+#include "utils.h"
 
 // -- Global State Variables for this module --
 unsigned long lastHeaterOnTime = 0, lastHeaterOffTime = 0;
@@ -47,7 +48,7 @@ void updatePerformanceData(bool isHeating) {
     unsigned long durationMs = currentTime() - cycleStartTime;
     if (durationMs < (MIN_HEATER_RUN_TIME_MS - 1000)) return;
 
-    float currentTempF = celsiusToFahrenheit(readTemperature());
+    float currentTempF = readTemperature(); // readTemperature already returns the correct unit (Fahrenheit by default)
     float tempChangeF = abs(currentTempF - cycleStartTempF);
     float durationHours = (float)durationMs / (1000.0 * 60.0 * 60.0);
     float rateF_PerHour = tempChangeF / durationHours;

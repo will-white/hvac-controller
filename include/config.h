@@ -9,6 +9,14 @@ enum SystemMode { SYS_OFF, SYS_HEAT, SYS_COOL, SYS_AUTO };
 enum FanMode { FAN_AUTO, FAN_ON, FAN_CIRCULATE };
 
 // -- Data Structures --
+struct TimeInfo {
+  int month;
+  int day;
+  int dayOfWeek; // 0=Sun, 1=Mon, ..., 6=Sat
+  int hour;
+  int minute;
+};
+
 struct ScheduleEntry {
   int startHour; 
   int startMinute; 
