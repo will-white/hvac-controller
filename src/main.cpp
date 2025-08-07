@@ -4,6 +4,7 @@
 #include "hvac_logic.h"
 #include "hvac_tests.h"
 #include "learning.h"
+#include "utils.h"
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "esp_task_wdt.h"
@@ -22,21 +23,31 @@ FanMode currentFanMode;
 enum ThermostatState { IDLE, RECOVERING, HEATING, COOLING, FAN_ONLY };
 ThermostatState currentState = IDLE;
 
-// -- Mocking infrastructure for tests --
-bool g_isTesting = false;
-unsigned long g_mockMillis = 0;
-TimeInfo g_mockTime;
-float g_mockIndoorTempF, g_mockOutdoorTempF;
-bool g_mockRelayStates[10] = {LOW,LOW,LOW,LOW,LOW,LOW,LOW,LOW,LOW,LOW};
-
 // =================================================================
 // ==              HARDWARE ABSTRACTION & UTILITIES               ==
 // =================================================================
-float fahrenheitToCelsius(float f) { return (f - 32.0) * 5.0 / 9.0; }
-float celsiusToFahrenheit(float c) { return (c * 9.0 / 5.0) + 32.0; }
 void writeRelay(int p, bool v) { if (g_isTesting) g_mockRelayStates[p] = v; else digitalWrite(p, v); }
 bool readRelay(int p) { return g_isTesting ? g_mockRelayStates[p] : digitalRead(p); }
 unsigned long currentTime() { return g_isTesting ? g_mockMillis : millis(); }
+
+// STUB: Replace with actual sensor reading code (e.g., for a DHT22 or SHT31)
+float readTemperature() {
+  if (g_isTesting) return g_mockIndoorTempF;
+  // In a real implementation, you would read from a sensor here.
+  // The return value should be in the unit defined by DEFAULT_TEMP_UNIT.
+  return 71.5; // Stub value
+}
+
+// STUB: Replace with actual sensor reading code
+float readOutdoorTemperature() {
+    if (g_isTesting) return g_mockOutdoorTempF;
+    return 55.0; // Stub value
+}
+
+// STUB: Replace with actual sensor reading code
+float readHumidity() {
+    return 48.0; // Stub value
+}
 
 // =================================================================
 // ==                  NVS SAVE/LOAD FUNCTIONS                    ==
