@@ -13,6 +13,7 @@ A single-zone HVAC thermostat on Olimex hardware: an **ESP32-C6-EVB** main board
 - `scripts/docker-build.sh` — build the main firmware (default env `hvac_controller`)
 - `scripts/docker-build.sh -e test_relays` — build the standalone relay hardware test
 - `scripts/docker-build.sh -e blank` — build the all-relays-off sketch (flash it to stop the relay test cycling)
+- `scripts/docker-build.sh -e zigbee_spike` — Phase 6 feasibility spike: Zigbee coordinator + WiFi on one C6 (own partition table — flashing it erases NVS/LittleFS; `zigbee_spike_baseline` is the same sketch without the ZBOSS stack, for size comparison). Findings in ROADMAP.md Phase 6.
 - `scripts/docker-build.sh -t clean` — clean build artifacts
 
 **On Windows, use the PowerShell wrappers instead** — `scripts/docker-build.sh` fails from Git Bash, which rewrites the container-side `-w /workspace` into `C:/Program Files/Git/workspace`:

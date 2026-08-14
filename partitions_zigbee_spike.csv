@@ -1,0 +1,10 @@
+# Zigbee spike ONLY: single 3MB app slot (no OTA pair - the ZCZR stack does
+# not fit a 4MB dual-OTA slot; that trade-off is the spike's key finding),
+# plus the zb_storage/zb_fct areas the ZBOSS stack requires.
+# Name,     Type, SubType, Offset,   Size,     Flags
+nvs,        data, nvs,     0x9000,   0x5000,
+otadata,    data, ota,     0xe000,   0x2000,
+app0,       app,  ota_0,   0x10000,  0x300000,
+zb_storage, data, fat,     0x310000, 0x4000,
+zb_fct,     data, fat,     0x314000, 0x1000,
+coredump,   data, coredump,0x315000, 0x10000,
