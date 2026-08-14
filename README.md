@@ -93,6 +93,8 @@ Opto-isolated inputs OPT1–4 on GPIO 1/2/3/15 (candidates: window switches, equ
 - **MOD-IO2**: logic runs from UEXT 3.3V, but **the relays only actuate with 12V DC on the MOD-IO2's own barrel jack**.
 - A single 12V supply can feed both barrel jacks.
 
+> **The two relay banks fail differently.** The EVB's REL1–REL4 are GPIO-driven and fail *open* — any reset releases them. The MOD-IO2's relays do not: the expander latches its last commanded mask on its own 12V rail, so if the ESP32 stops for any reason its contacts stay **closed** until either the firmware runs again or the EVB loses power (which drops UEXT 3.3V and the expander with it). This is why heating, cooling, fan and damper are wired to the EVB relays, and why any sketch that drives the expander keeps the task watchdog armed.
+
 ## Software Architecture
 
 The project is organized into a clean, modular, multi-file structure to separate concerns and improve maintainability.
@@ -143,10 +145,12 @@ The project is organized into a clean, modular, multi-file structure to separate
   * Uses a mocking framework to simulate time, sensor inputs, and relay states.
 
 ## Setup & Installation
-1. **Build (Docker, recommended)**: All building happens in a Docker container — no host toolchain needed. Run `scripts/docker-build.sh` to build the firmware, or `scripts/docker-build.sh -e test_relays` for the relay hardware test. VS Code users can instead open the repo in the provided devcontainer (`.devcontainer/`), which uses the same image and package cache.
+1. **Build (Docker, recommended)**: All building happens in a Docker container — no host toolchain needed. Run `scripts/docker-build.sh` to build the firmware, `scripts/docker-build.sh -e test_relays` for the relay hardware test, or `scripts/docker-build.sh -e blank` for the all-relays-off sketch. VS Code users can instead open the repo in the provided devcontainer (`.devcontainer/`), which uses the same image and package cache. **On Windows use `scripts/build.ps1` instead** — the shell script fails from Git Bash, which rewrites the container-side working directory.
 2. **Target**: ESP32-C6 (`esp32-c6-devkitc-1`) via the [pioarduino](https://github.com/pioarduino/platform-espressif32) espressif32 platform (Arduino core 3.x). The official PlatformIO espressif32 platform has no C6 support.
 3. **File Structure**: All sources and headers live together in `src/`.
-4. **Libraries**: No external libraries are required beyond what ships with the Arduino core.
+4. **Libraries**: One external library — `knolleary/PubSubClient` for MQTT, declared in `platformio.ini` and fetched automatically. Everything else ships with the Arduino core.
 5. **Configuration**: Modify the settings in `src/config.h` to match your HVAC system (including the `TZ_INFO` timezone string).
 6. **WiFi (optional — needed only at deployment)**: copy `src/secrets.h.example` to `src/secrets.h` and fill in credentials for a real NTP clock. Without it the firmware runs offline: the schedule is replaced by a safe fallback hold (68/76 °F), and on the bench `sim time` provides a clock for schedule testing.
-7. **Upload & Monitor**: `pio run -e hvac_controller -t upload` from the devcontainer with the board's USB passed through (WSL: `usbipd attach`), then open the Serial Monitor at `115200` baud to view the test suite results and status logs.
+7. **Upload & Monitor**: from the devcontainer, `pio run -e hvac_controller -t upload` with the board's USB passed through (WSL: `usbipd attach`). On Windows, `scripts/flash.ps1` builds in Docker and then flashes from the host with esptool — no host toolchain needed. Monitor at `115200` baud (`scripts/monitor.ps1`) to view the test-suite results and status logs.
+
+   > **Do not let a serial monitor assert RTS.** On the C6's native USB-Serial-JTAG, DTR/RTS drive RESET and GPIO9/boot, so asserting them knocks the *running* firmware into the ROM download bootloader — you'll see an `ESP-ROM:` banner and nothing more. The EVB relays open on that reset, but any MOD-IO2 relay stays latched closed until the firmware runs again. `platformio.ini` pins `monitor_dtr`/`monitor_rts` to `0`; output still flows, because CDC connection is detected from USB SOF rather than DTR.

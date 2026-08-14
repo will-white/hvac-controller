@@ -23,7 +23,7 @@ void sensors_injectOutdoorWeather(float tempF); // staleness: OUTDOOR_STALE_MINS
 const char* sensors_outdoorSource();            // "probe" | "weather" | "none" (diagnostics)
 
 float readTemperature();          // indoor, in DEFAULT_TEMP_UNIT
-float readOutdoorTemperature();   // NAN until outdoor hardware exists (Phase 3: weather API)
+float readOutdoorTemperature();   // probe > weather feed > NAN when neither is fresh
 float readHumidity();             // indoor %RH
 
 #endif // SENSORS_H

@@ -12,13 +12,27 @@ A single-zone HVAC thermostat on Olimex hardware: an **ESP32-C6-EVB** main board
 
 - `scripts/docker-build.sh` — build the main firmware (default env `hvac_controller`)
 - `scripts/docker-build.sh -e test_relays` — build the standalone relay hardware test
+- `scripts/docker-build.sh -e blank` — build the all-relays-off sketch (flash it to stop the relay test cycling)
 - `scripts/docker-build.sh -t clean` — clean build artifacts
+
+**On Windows, use the PowerShell wrappers instead** — `scripts/docker-build.sh` fails from Git Bash, which rewrites the container-side `-w /workspace` into `C:/Program Files/Git/workspace`:
+
+- `scripts/build.ps1 [-Env <name>] [-Target <t>]` — same Docker build, Windows-safe paths
+- `scripts/flash.ps1 [-Env <name>] [-Port COM3] [-NoBuild]` — build then flash over USB
+- `scripts/monitor.ps1 [-Port COM3] [-Seconds N]` — serial monitor with RTS held deasserted
 
 The script builds the `.devcontainer/` image and runs `pio run` inside it. Platform/toolchain downloads persist in the `platformio-cache` named Docker volume, which the VS Code devcontainer shares. A warm-cache build takes seconds; a cold one downloads ~1 GB first.
 
-Flashing needs USB access the build container doesn't have: upload from the devcontainer with the board passed through (WSL: `usbipd attach`), using `pio run -e hvac_controller -t upload`; serial monitor at 115200 baud.
+Flashing needs USB access the build container doesn't have. Two routes:
 
-The platform is pinned in `platformio.ini` to a specific pioarduino release (the official `platformio/espressif32` platform has no C6 support — do not switch back to it). The two envs share `src/` via `build_src_filter`; each includes exactly one file with `setup()`/`loop()`. Defining `build_src_filter` *replaces* the default `+<*>`, so the main env's filter must stay `+<*> -<main-relay-test.cpp>`.
+- **Devcontainer**: pass the board through (WSL: `usbipd attach`) and run `pio run -e hvac_controller -t upload`.
+- **Windows host** (what `scripts/flash.ps1` does): build in Docker as usual, then flash the resulting `.pio/build/<env>/firmware.factory.bin` at offset `0x0` using the host's `~/.platformio/packages/tool-esptoolpy/esptool.py`. This needs no host toolchain — only the flasher — so the never-build-on-the-host rule still holds. The EVB enumerates as a native USB-Serial-JTAG device (VID `303A` / PID `1001`).
+
+Serial monitor is 115200 baud. **Never assert RTS on the C6's USB serial port.** DTR/RTS are wired to RESET and GPIO9/boot, so a monitor that asserts them drops the *running* app into the ROM download bootloader (tell-tale: an `ESP-ROM:` / `Build:Sep 19 2022` banner and nothing else). That is not a firmware hang, and it is dangerous here: the app stops, the EVB GPIOs reset so those contacts open, but the MOD-IO2 holds its last commanded mask on its own 12 V rail and stays **latched closed**. `monitor_dtr`/`monitor_rts` are pinned to `0` in `platformio.ini`; `HWCDC::isCDC_Connected()` keys off USB SOF rather than DTR, so output still flows with both lines low.
+
+`platformio.ini` sets `-DARDUINO_USB_MODE=1 -DARDUINO_USB_CDC_ON_BOOT=1` in `[env]`. These are load-bearing, not cosmetic: the `esp32-c6-devkitc-1` board def sets neither, and the core only instantiates the USB CDC `Serial` when **both** are defined (`HWCDC.cpp`: `#if ARDUINO_USB_MODE && ARDUINO_USB_CDC_ON_BOOT`). Without them `Serial` is UART0 on GPIO16/17, which is not wired to the EVB's USB-C — the console REPL silently produces no output at all. Because CDC is enabled, `setup()` must also call `Serial.setTxTimeoutMs(0)`, or Serial writes block once the TX ring fills with no host draining it, stalling the control loop with relays energized.
+
+The platform is pinned in `platformio.ini` to a specific pioarduino release (the official `platformio/espressif32` platform has no C6 support — do not switch back to it). The three envs share `src/` via `build_src_filter`; each includes exactly one file with `setup()`/`loop()`. Defining `build_src_filter` *replaces* the default `+<*>`, so the main env's filter must exclude **every** standalone sketch — currently `+<*> -<main-relay-test.cpp> -<main-blank.cpp>`. Add a new exclusion line here whenever you add another standalone sketch, or the build breaks on duplicate `setup()`/`loop()`.
 
 There is no host-side test runner. Tests are on-device: `runTests()` (in `src/hvac_tests.cpp`) runs from `setup()` on every boot and prints results to serial. To add a test, add a function to `hvac_tests.cpp` and call it from `runTests()`. Because tests run on every boot against live globals, `runTests()` snapshots and restores all state the tests mutate (`performance`, `programSchedule`, `vacationModeActive`), and `saveSettings()` refuses to write NVS while `g_isTesting` is set — preserve both invariants when adding tests.
 
@@ -36,7 +50,7 @@ All source and headers live flat in `src/` (no `include/` directory).
 - **`ota.cpp` / `.h`** — ArduinoOTA, gated on `OTA_PASSWORD`. Invariants: onStart turns ALL relays off, flushes perf+health, and unsubscribes the task WDT (flash writes stall the loop); onError re-subscribes it.
 - **`web.cpp` / `.h`** — WebServer dashboard (self-contained PROGMEM page, no external assets) + `/api/status|mode|hold|holdoff|reset`. Starts lazily once WiFi is up.
 - **`events.cpp` / `.h`** — RAM ring buffer behind `logEvent()` (printf-style); relay transitions auto-log from `relays.cpp`. Console `log` dumps it.
-- **`relays.cpp` / `.h`** — relay hardware abstraction. `writeRelay`/`readRelay` take *logical* relay indices; the physical map (EVB GPIO vs MOD-IO2 I²C channel) lives only in `RELAY_MAP` here. The MOD-IO2 driver is write-through with a cached mask (Rev.B firmware may lack the 0x43 readback). Heat/cool/fan/damper must stay on EVB GPIO relays — never move them to the I²C expander, so a bus fault can't strand them.
+- **`relays.cpp` / `.h`** — relay hardware abstraction. `writeRelay`/`readRelay` take *logical* relay indices; the physical map (EVB GPIO vs MOD-IO2 I²C channel) lives only in `RELAY_MAP` here. The MOD-IO2 driver is write-through with a cached mask (Rev.B firmware may lack the 0x43 readback). Heat/cool/fan/damper must stay on EVB GPIO relays — never move them to the I²C expander, so a bus fault can't strand them. **The two banks have different failure modes.** EVB relays are GPIO-driven and fail *open*: any reset drops the pins and the contacts release. MOD-IO2 relays do not — the expander holds its last commanded mask on its own 12 V barrel-jack rail, so if the ESP32 stops for any reason (hang, crash, dropped into the ROM bootloader) its contacts stay **closed indefinitely**, and only release when the EVB itself loses power and takes UEXT 3.3 V down with it. Anything that drives the expander must therefore keep the task watchdog armed, so a stall reboots and re-writes mask 0 within `WDT_TIMEOUT_SECS` instead of latching until a human notices. Verify the return value of *off* writes, not just on writes.
 - **`main.cpp` / `main.h`** — entry point and coordinator: NVS load/save (`hvac_cfg` namespace), watchdog setup, schedule resolution (with previous-day carryover before the day's first entry), sensor validation (including NaN checks; a bad outdoor reading disables the economizer for that cycle rather than faulting), and the 5 s control loop calling `controlTemperature` / `controlHumidity` / `controlFan`. Owns the globals other modules use via `extern` in `main.h` (`performance`, `systemLockedOut`, `tempUnit`, `systemMode`).
 - **`hvac_logic.cpp` / `.h`** — the control engine: relay decisions, hysteresis, min/max run-time enforcement, max-run lockout, economizer, post-cycle performance measurement, post-heat fan purge, and circulate-as-quota (fan-minutes/hour, deadline-scheduled, all fan runtime credited). `freshAirPurpose` tracks which demand (heating vs cooling) the damper is serving — the AUTO-mode branch gates depend on it; do not gate branches on the raw damper state (that latches the damper open forever, the bug fixed in 2026-08). `controlFan` must run BEFORE `controlHumidity` in the tick (the humidifier's airflow gate reads this tick's fan decision).
 - **`learning.cpp` / `.h`** — logs manual adjustments to LittleFS (`/learning_log.csv`, self-rotating at `LEARNING_LOG_MAX_BYTES`); fed by console holds via `setHold()`. `analyze_and_learn_if_needed()` is a placeholder.
@@ -51,7 +65,9 @@ All hardware and time access goes through wrappers — `writeRelay`/`readRelay` 
 
 ### Current gaps
 
-Outdoor temperature has no hardware yet (`readOutdoorTemperature()` returns NAN → economizer disabled; Phase 3 adds a weather API). Smart Recovery (early-start before scheduled changes) is still unimplemented: `ENABLE_SMART_RECOVERY` and `MAX_RECOVERY_TIME_MINS` are unused; the performance-data collection side works. See ROADMAP.md for the full phase plan. Flash: custom `partitions_4mb.csv` (dual 1.5 MB OTA slots) sized for the EVB's REAL 4 MB WROOM-1-N4 module — the `esp32-c6-devkitc-1` board def wrongly claims 8 MB; never size partitions past 4 MB. App is at ~77% of its slot.
+`analyze_and_learn_if_needed()` in `learning.cpp` is still a placeholder — the manual-adjustment log accumulates but nothing consumes it. Outdoor temperature still has no local hardware probe; `sensors_injectOutdoorProbe()` exists but nothing calls it, so outdoor data comes from the weather feed alone and `readOutdoorTemperature()` falls back to NAN (cleanly disabling the economizer) whenever that feed goes stale. See ROADMAP.md for the full phase plan.
+
+Flash: custom `partitions_4mb.csv` (dual 1.5 MB OTA slots) sized for the EVB's REAL 4 MB WROOM-1-N4 module — the `esp32-c6-devkitc-1` board def wrongly claims 8 MB; never size partitions past 4 MB (confirmed on hardware 2026-08-14: flash device ID `4016` = 4 MB). App is at ~76% of its slot.
 
 ### Unit convention
 

@@ -278,6 +278,11 @@ static void controlTick() {
 // =================================================================
 void setup() {
   Serial.begin(115200);
+  // Deployed, nothing is draining the USB CDC. Without a zero TX timeout the
+  // HWCDC ring fills and every Serial write blocks the control loop — with
+  // relays energized, and MOD-IO2 contacts that stay closed until we rewrite
+  // the mask. Logging must never be able to stall control.
+  Serial.setTxTimeoutMs(0);
   // On the C6 the console is USB-Serial-JTAG: blocking on !Serial forever would
   // hang a headless boot, so wait at most 3 s for a monitor to attach.
   for (unsigned long t0 = millis(); !Serial && millis() - t0 < 3000; ) delay(10);
