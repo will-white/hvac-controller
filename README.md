@@ -85,7 +85,7 @@ Primary indoor sensing is **remote wireless probes** (Zigbee Aqara temperature/h
 
 ### Other EVB I/O (available, not yet used)
 
-Opto-isolated inputs OPT1–4 on GPIO 1/2/3/15 (candidates: window switches, equipment-status sense), user LED on GPIO8, user/boot button on GPIO9, UART0 on GPIO16/17 (ESP-PROG header).
+Opto-isolated inputs OPT1–4 on GPIO 1/2/3/15: OPT1/2/3 sense 24VAC equipment feedback (heat/cool/fan call-proving — self-arming on first signal, quiet until wired), OPT4 is a window contact. User LED on GPIO8 (status blink codes), user/boot button on GPIO9, UART0 on GPIO16/17 (ESP-PROG header).
 
 ### Power
 

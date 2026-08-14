@@ -8,6 +8,7 @@
 #include "events.h"
 #include "hvac_logic.h"
 #include "hvac_tests.h"
+#include "inputs.h"
 #include "main.h"
 #include "relays.h"
 #include "sensors.h"
@@ -25,6 +26,9 @@ struct HealthCounters {
   uint16_t maxRunCool;
   uint16_t abnormalResets;
   uint16_t sensorDropouts;
+  uint16_t callNotProven[3]; // heat, cool, fan: call active, no 24VAC feedback
+  uint16_t phantomRun[3];    // feedback active with NO call (welded relay)
+  uint8_t  optoCommissioned; // which inputs have ever seen a signal
 };
 static HealthCounters hc = {};
 static bool healthDirty = false;
@@ -53,6 +57,17 @@ bool health_evalCapacity(float rateFPerHr, float baselineAvg, int baselineSample
   return rateFPerHr < baselineAvg * HEALTH_CAPACITY_WARN_FRACTION;
 }
 
+bool health_evalCallProven(bool commissioned, unsigned long callElapsedMs, bool proofActive) {
+  if (!commissioned) return false; // input never wired: stay quiet
+  if (callElapsedMs < OPTO_PROVE_GRACE_SECS * 1000UL) return false;
+  return !proofActive;
+}
+
+bool health_evalPhantomRun(bool commissioned, bool callOn, unsigned long proofElapsedMs, bool proofActive) {
+  if (!commissioned || callOn || !proofActive) return false;
+  return proofElapsedMs >= OPTO_PHANTOM_GRACE_SECS * 1000UL;
+}
+
 // -- Persistence --
 static void loadCounters() {
   nvs_handle_t h;
@@ -78,6 +93,7 @@ void health_flushIfDirty() { if (healthDirty) saveCounters(); }
 
 void health_begin() {
   loadCounters();
+  inputs_setCommissioned(hc.optoCommissioned); // re-arm proving across reboots
   lastPollRealMs = millis();
   esp_reset_reason_t r = esp_reset_reason();
   // USB/JTAG resets are host-initiated (esptool after every flash) — deliberate,
@@ -141,6 +157,48 @@ void health_poll() {
     }
   }
 
+  // Opto call-proving (real time: 24VAC presence is a physical signal).
+  // Advisory like every rule here — control is never interrupted.
+  static const int      proofRelays[3] = { HEATER_RELAY, COOLER_RELAY, FAN_RELAY };
+  static const OptoRole proofRoles[3]  = { OPTO_HEAT_PROOF, OPTO_COOL_PROOF, OPTO_FAN_PROOF };
+  static const char*    proofNames[3]  = { "heat", "cool", "fan" };
+  static unsigned long  callOnSince[3] = {0};    // 0 = call off
+  static unsigned long  proofOnSince[3] = {0};   // feedback active while call off
+  static bool warnedThisCall[3] = {false};
+  static bool warnedThisPhantom[3] = {false};
+  for (int k = 0; k < 3; k++) {
+    int idx = inputs_forRole(proofRoles[k]);
+    if (idx < 0) continue;
+    bool callOn = readRelay(proofRelays[k]);
+    bool proof = inputs_isActive(idx);
+    bool comm = inputs_isCommissioned(idx);
+    if (callOn) {
+      if (!callOnSince[k]) { callOnSince[k] = nowReal ? nowReal : 1; warnedThisCall[k] = false; }
+      if (!warnedThisCall[k] && health_evalCallProven(comm, nowReal - callOnSince[k], proof)) {
+        warnedThisCall[k] = true;
+        hc.callNotProven[k]++;
+        healthDirty = true;
+        logEvent("HEALTH: %s call NOT proven (no 24VAC feedback)", proofNames[k]);
+      }
+      proofOnSince[k] = 0;
+    } else {
+      callOnSince[k] = 0;
+      if (proof) {
+        if (!proofOnSince[k]) { proofOnSince[k] = nowReal ? nowReal : 1; warnedThisPhantom[k] = false; }
+        if (!warnedThisPhantom[k] && health_evalPhantomRun(comm, false, nowReal - proofOnSince[k], proof)) {
+          warnedThisPhantom[k] = true;
+          hc.phantomRun[k]++;
+          healthDirty = true;
+          logEvent("HEALTH: %s feedback active with NO call (welded relay?)", proofNames[k]);
+        }
+      } else {
+        proofOnSince[k] = 0;
+      }
+    }
+  }
+  uint8_t commMask = inputs_commissionedMask();
+  if (commMask != hc.optoCommissioned) { hc.optoCommissioned = commMask; healthDirty = true; }
+
   // Indoor remote probe dropouts (fresh -> stale transition).
   bool fresh = sensors_remoteFresh();
   if (prevRemoteEver && prevRemoteFresh && !fresh) {
@@ -176,6 +234,8 @@ int health_warningCount() {
   if (relays_modio2FailureCount() > 0) warns++;
   if (hc.abnormalResets > 0) warns++;
   if (hc.sensorDropouts > 2) warns++;
+  if (hc.callNotProven[0] || hc.callNotProven[1] || hc.callNotProven[2]) warns++;
+  if (hc.phantomRun[0] || hc.phantomRun[1] || hc.phantomRun[2]) warns++;
   return warns;
 }
 
@@ -198,6 +258,16 @@ void printHealthReport() {
   row("modio2-i2c-failures", relays_modio2FailureCount(), 1, relays_modio2FailureCount() > 0);
   row("abnormal-resets",    hc.abnormalResets, 1, hc.abnormalResets >= 1);
   row("sensor-dropouts",    hc.sensorDropouts, 3, hc.sensorDropouts > 2);
+  row("heat-call-not-proven", hc.callNotProven[0], 1, hc.callNotProven[0] >= 1);
+  row("cool-call-not-proven", hc.callNotProven[1], 1, hc.callNotProven[1] >= 1);
+  row("fan-call-not-proven",  hc.callNotProven[2], 1, hc.callNotProven[2] >= 1);
+  unsigned long phantoms = hc.phantomRun[0] + hc.phantomRun[1] + hc.phantomRun[2];
+  row("phantom-equip-runs", phantoms, 1, phantoms >= 1);
+  Serial.printf("  opto proving armed: %s%s%s%s\n",
+                inputs_isCommissioned(inputs_forRole(OPTO_HEAT_PROOF)) ? "heat " : "",
+                inputs_isCommissioned(inputs_forRole(OPTO_COOL_PROOF)) ? "cool " : "",
+                inputs_isCommissioned(inputs_forRole(OPTO_FAN_PROOF)) ? "fan " : "",
+                hc.optoCommissioned ? "" : "(none - inputs not wired yet)");
   Serial.printf("Overall: %d warning group(s). Rules are advisory - control is never interrupted.\n",
                 health_warningCount());
   Serial.println("('health reset filter' after a filter change)");

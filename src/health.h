@@ -19,5 +19,8 @@ int  health_warningCount();
 // Pure rule evaluators, exposed for the boot self-tests.
 bool health_evalNoResponse(bool isHeating, unsigned long elapsedMs, float startTempF, float nowTempF);
 bool health_evalCapacity(float rateFPerHr, float baselineAvg, int baselineSamples);
+// Opto proving: direct 24VAC evidence, stronger than the temp-trend inference.
+bool health_evalCallProven(bool commissioned, unsigned long callElapsedMs, bool proofActive);
+bool health_evalPhantomRun(bool commissioned, bool callOn, unsigned long proofElapsedMs, bool proofActive);
 
 #endif // HEALTH_H

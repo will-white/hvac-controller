@@ -45,7 +45,7 @@ serviceable by an HVAC tech, and genuinely smarter than commercial stats.
 ## Phase 5 — Reliability depth
 
 - [x] S.M.A.R.T.-style health rules (advisory): no-response calls (temp trend), capacity degradation vs learned baseline, short-cycling, filter runtime, MOD-IO2 bus failures, abnormal resets, sensor dropouts — persisted counters, console `health` report
-- [ ] Opto-input equipment feedback (24VAC sense: prove calls are answered; window contacts) — will strengthen the no-response rule from temp-trend inference to direct proof
+- [x] Opto-input equipment feedback (24VAC sense on OPT1–3: heat/cool/fan call-proving + phantom-run detection, self-arming on first signal; OPT4 window contact logged) — strengthens the no-response rule from temp-trend inference to direct proof; field wiring still pending at install
 - [x] Persistent lockout/fault across reboots with explicit acknowledge (NVS-latched with trip reason; cleared only by `reset fault`/`reset lockout` on console or web)
 - [x] Event journal persisted to LittleFS (rotating, rate-limited; console `log file`); reset-reason logging on every boot
 - [ ] Host-native PlatformIO test env + CI (GitHub Actions running the Docker build + logic tests)

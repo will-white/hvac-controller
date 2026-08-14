@@ -123,8 +123,23 @@ const unsigned long REMOTE_SENSOR_STALE_MINS = 90;
 const uint8_t SHT4X_I2C_ADDRESS     = 0x44;
 
 // -- ESP32-C6-EVB other I/O --
-// Opto-isolated inputs (<=30VDC, not yet used): OPT1=GPIO1, OPT2=GPIO2,
-// OPT3=GPIO3, OPT4=GPIO15. User/boot button BUT1=GPIO9, UART0 (ESP-PROG)=GPIO16/17.
+// User/boot button BUT1=GPIO9, UART0 (ESP-PROG)=GPIO16/17.
+
+// -- Opto-isolated inputs (<=30V): equipment feedback & contact sense --
+// 24VAC through the opto conducts only on positive half-cycles, so a live
+// signal reads as ~60Hz pulses — "active" means asserted within the last
+// OPTO_AC_HOLD_MS, bridging the zero crossings. An input that has NEVER been
+// seen active is "not commissioned" (not wired yet) and all its rules stay
+// quiet; first signal arms it (mask persisted with the health counters).
+enum OptoRole { OPTO_NONE, OPTO_HEAT_PROOF, OPTO_COOL_PROOF, OPTO_FAN_PROOF, OPTO_WINDOW };
+const int      OPTO_COUNT             = 4;
+const int      OPTO_PINS[OPTO_COUNT]  = { 1, 2, 3, 15 }; // OPT1..OPT4
+const OptoRole OPTO_ROLES[OPTO_COUNT] = { OPTO_HEAT_PROOF, OPTO_COOL_PROOF, OPTO_FAN_PROOF, OPTO_WINDOW };
+const bool     OPTO_ACTIVE_LOW        = true; // opto transistor pulls the GPIO low when energized
+const unsigned long OPTO_AC_HOLD_MS        = 100;  // hold "active" across AC zero crossings
+const unsigned long OPTO_PROVE_GRACE_SECS  = 90;   // call must show feedback within this
+const unsigned long OPTO_PHANTOM_GRACE_SECS = 300; // feedback w/o call this long = welded relay
+                                                   // (long: furnaces run their own blower delays)
 
 // -- Status LED (EVB user LED, blink-codes for fault classes) --
 

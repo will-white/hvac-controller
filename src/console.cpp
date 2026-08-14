@@ -9,6 +9,7 @@
 #include "events.h"
 #include "health.h"
 #include "hvac_logic.h"
+#include "inputs.h"
 #include "main.h"
 #include "net_time.h"
 #include "relays.h"
@@ -80,7 +81,7 @@ static void printStatus() {
 static void printHelp() {
   Serial.println(
     "Commands:\n"
-    "  status | sensors | relays | log [file] | i2c | health [reset filter|counters]\n"
+    "  status | sensors | inputs | relays | log [file] | i2c | health [reset filter|counters]\n"
     "  remote <tempF> [rh]         (emulate an indoor wireless probe report, honors staleness)\n"
     "  outdoor <tempF>             (emulate the outdoor probe; outranks the weather feed)\n"
     "  mode <off|heat|cool|auto>   vacation <on|off>\n"
@@ -148,6 +149,14 @@ static void handleLine(char* line) {
   else if (!strcmp(cmd, "outdoor") && a1) {
     sensors_injectOutdoorProbe(atof(a1));
     Serial.println("Outdoor probe report injected (outranks weather while fresh).");
+  }
+  else if (!strcmp(cmd, "inputs")) {
+    for (int i = 0; i < OPTO_COUNT; i++) {
+      Serial.printf("  OPT%d GPIO%-2d %-10s raw:%d active:%d armed:%d\n",
+        i + 1, OPTO_PINS[i], optoRoleName(OPTO_ROLES[i]),
+        inputs_rawLevel(i), inputs_isActive(i), inputs_isCommissioned(i));
+    }
+    Serial.println("(armed = has seen a signal at least once; rules stay quiet until then)");
   }
   else if (!strcmp(cmd, "relays")) {
     for (int i = 0; i < RELAY_COUNT; i++) Serial.printf("  %-6s %s\n", RELAY_NAMES[i], readRelay(i) ? "ON" : "off");

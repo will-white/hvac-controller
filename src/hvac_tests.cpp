@@ -95,6 +95,17 @@ void testHealthRules() {
   test("    6. Capacity quiet with sparse baseline", !health_evalCapacity(2.0, 5.0, 2));
 }
 
+void testOptoProofRules() {
+  Serial.println("  --- Testing Opto Call-Proving Rules ---");
+  test("    1. Unwired input never warns", !health_evalCallProven(false, 10*60000UL, false));
+  test("    2. Not-proven trips past grace", health_evalCallProven(true, 2*60000UL, false));
+  test("    3. Quiet inside grace period", !health_evalCallProven(true, 30000UL, false));
+  test("    4. Quiet when feedback present", !health_evalCallProven(true, 2*60000UL, true));
+  test("    5. Phantom run trips past grace", health_evalPhantomRun(true, false, 6*60000UL, true));
+  test("    6. Phantom quiet while call is on", !health_evalPhantomRun(true, true, 6*60000UL, true));
+  test("    7. Phantom quiet when unwired", !health_evalPhantomRun(false, false, 6*60000UL, true));
+}
+
 void testPerformanceLearning() {
     Serial.println("  --- Testing Seasonal Performance Learning ---");
     resetHvacState();
@@ -129,6 +140,7 @@ void runTests() {
   testProtectionClamps();
   testSmartRecovery();
   testHealthRules();
+  testOptoProofRules();
   testPerformanceLearning();
   // ... call other test suites ...
 

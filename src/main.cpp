@@ -8,6 +8,7 @@
 #include "health.h"
 #include "hvac_logic.h"
 #include "hvac_tests.h"
+#include "inputs.h"
 #include "learning.h"
 #include "mqtt.h"
 #include "net_time.h"
@@ -355,6 +356,7 @@ void setup() {
 
   initRelays(); // EVB GPIO relays + MOD-IO2 I2C bus, everything driven off
   statusLed_begin();
+  inputs_begin(); // before health_begin: it restores the commissioned mask
   sensors_begin();
   net_time_begin();
   mqtt_begin();
@@ -373,6 +375,7 @@ void loop() {
 
   console_poll();   // serial commands, sim clock, service-mode safety timers
   statusLed_poll(); // blink codes (fault/lockout/service/health/heartbeat)
+  inputs_poll();    // opto sampling (fast: must catch 60Hz half-wave pulses)
   net_time_poll();  // WiFi reconnect state machine
   weather_poll();   // outdoor temp fetch (no-op without WiFi/coordinates)
   mqtt_poll();      // HA entity + Zigbee2MQTT probe ingestion (no-op unconfigured)
