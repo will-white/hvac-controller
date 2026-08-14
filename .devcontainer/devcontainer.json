@@ -1,33 +1,61 @@
 {
-	"name": "PlatformIO (Community)",
-	"build": {
-		"dockerfile": "Dockerfile",
-		"context": ".",
-		"args": {
-			"FEDORA_COMPAT" : "1", // enables fedora compatibility mode (extra dialout group with gid 18)
-			"VARIANT": "bookworm"
-		}
-	},
-	"customizations": {
-		"vscode": {
-			"settings": {
-				"terminal.integrated.defaultProfile.linux": "zsh"
-			},
-			"extensions": [
-				"ms-vscode.cpptools",
-				"platformio.platformio-ide"
-			]
-		}
-	},
-	"forwardPorts": [
-		8008
-	],
-	"mounts": [
-		"source=/dev/,target=/dev/,type=bind,consistency=consistent"
-	],
-	"runArgs": [
-		"--privileged"
-	],
-	"features": {},
-	"postAttachCommand": "sudo service udev restart"
+  "name": "HVAC Controller (PlatformIO / ESP32-C6)",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  // Claude Code CLI (the feature also adds the anthropic.claude-code VS Code
+  // extension). Node is pinned here because the claude-code feature otherwise
+  // falls back to installing Node 18 from nodesource.
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    },
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
+  },
+
+  // Mount the .platformio directory from a named volume to persist
+  // downloaded toolchains and libraries between container rebuilds.
+  // claude-config does the same for Claude's login + history, so a container
+  // rebuild doesn't force a re-authentication.
+  "mounts": [
+    "source=platformio-cache,target=/home/vscode/.platformio,type=volume",
+    "source=hvac-claude-config,target=/home/vscode/.claude,type=volume"
+  ],
+
+  "remoteEnv": {
+    // Keeps ~/.claude.json (auth/onboarding state) inside the persisted volume
+    // instead of loose in $HOME, where a rebuild would drop it.
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "platformio.platformio-ide",
+        "ms-vscode.cpptools",
+        "ms-python.python"
+      ],
+      "settings": {
+        // This is required to make the PlatformIO extension work correctly.
+        "terminal.integrated.defaultProfile.linux": "bash",
+        // Point C/C++ extension to the PlatformIO-generated configuration
+        "C_Cpp.default.configurationProvider": "platformio.platformio-ide"
+      }
+    }
+  },
+
+  // This command will run after the container is created.
+  // It installs project-specific dependencies from platformio.ini.
+  // ("pio lib install" is deprecated in PlatformIO 6.)
+  "postCreateCommand": "pio pkg install",
+
+  // Forward the PlatformIO Home port
+  "forwardPorts": [8008],
+
+  // Keep the container running after closing VS Code
+  "shutdownAction": "none",
+
+  // Run as a non-root user.
+  "remoteUser": "vscode"
 }

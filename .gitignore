@@ -1,2 +1,17 @@
-.pio
+# General
+.DS_Store
+*.env
+
+# VS Code
 .vscode/
+!.vscode/extensions.json
+
+# PlatformIO
+.pio/
+.cache/
+
+# Ignore project-specific build artifacts and configs in any subfolder
+**/projects/*/.pio/
+**/projects/*/.vscode/
+# WiFi credentials (copy src/secrets.h.example to src/secrets.h)
+src/secrets.h
