@@ -122,9 +122,15 @@ const unsigned long REMOTE_SENSOR_STALE_MINS = 90;
 // Optional local fallback: Sensirion SHT4x (temp + RH) on UEXT I2C, addr 0x44.
 const uint8_t SHT4X_I2C_ADDRESS     = 0x44;
 
-// -- ESP32-C6-EVB other I/O (available, not yet used) --
-// Opto-isolated inputs (<=30VDC): OPT1=GPIO1, OPT2=GPIO2, OPT3=GPIO3, OPT4=GPIO15
-// User LED=GPIO8, user/boot button BUT1=GPIO9, UART0 (ESP-PROG)=GPIO16/17
+// -- ESP32-C6-EVB other I/O --
+// Opto-isolated inputs (<=30VDC, not yet used): OPT1=GPIO1, OPT2=GPIO2,
+// OPT3=GPIO3, OPT4=GPIO15. User/boot button BUT1=GPIO9, UART0 (ESP-PROG)=GPIO16/17.
+
+// -- Status LED (EVB user LED, blink-codes for fault classes) --
+
+// -- Status LED (EVB user LED, blink-codes for fault classes) --
+const int  STATUS_LED_PIN         = 8;    // strapping pin; safe to drive after boot
+const bool STATUS_LED_ACTIVE_HIGH = true; // flip if the EVB LED proves inverted
 
 // -- Network / Time --
 // POSIX TZ string; default is US Eastern — change for your locale.
@@ -222,5 +228,11 @@ const unsigned long OUTDOOR_STALE_MINS              = 30;   // weather-API stale
 // per week. Losing <=6h of averaged samples on a power cut is noise.
 const unsigned long PERF_FLUSH_INTERVAL_MINS        = 360;
 const unsigned long LEARNING_LOG_MAX_BYTES          = 65536; // rotate CSV beyond this
+
+// -- Event journal (flash-persisted copy of the RAM event ring) --
+static const char   EVENT_JOURNAL_FILE[]            = "/event_journal.log";
+static const char   EVENT_JOURNAL_OLD_FILE[]        = "/event_journal.old"; // one retained generation
+const unsigned long EVENT_JOURNAL_MAX_BYTES         = 49152; // rotate current -> .old beyond this
+const int           EVENT_JOURNAL_MAX_PER_MIN       = 30;    // flash-wear cap (`sim speed` storms)
 
 #endif // CONFIG_H

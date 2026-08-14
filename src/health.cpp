@@ -80,9 +80,11 @@ void health_begin() {
   loadCounters();
   lastPollRealMs = millis();
   esp_reset_reason_t r = esp_reset_reason();
-  if (r != ESP_RST_POWERON && r != ESP_RST_SW) {
+  // USB/JTAG resets are host-initiated (esptool after every flash) — deliberate,
+  // not a reboot loop. Abnormal = panic, any watchdog, brownout, etc.
+  if (r != ESP_RST_POWERON && r != ESP_RST_SW && r != ESP_RST_USB && r != ESP_RST_JTAG) {
     hc.abnormalResets++;
-    logEvent("HEALTH: abnormal reset (reason %d, lifetime %u)", (int)r, hc.abnormalResets);
+    logEvent("HEALTH: abnormal reset (%s, lifetime %u)", resetReasonName((int)r), hc.abnormalResets);
     saveCounters(); // once per boot: negligible wear, and reboot loops must be visible
   }
 }
@@ -155,6 +157,13 @@ void health_resetFilter() {
   healthDirty = true;
   saveCounters();
   logEvent("filter runtime counter reset");
+}
+
+void health_resetCounters() {
+  memset(&hc, 0, sizeof(hc));
+  healthDirty = true;
+  saveCounters();
+  logEvent("all health counters reset");
 }
 
 int health_warningCount() {

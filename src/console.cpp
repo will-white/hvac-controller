@@ -62,6 +62,8 @@ static void printStatus() {
   Serial.printf("Mode: %s%s | fault:%d lockout:%d | service:%d\n",
     systemMode == SYS_OFF ? "OFF" : systemMode == SYS_HEAT ? "HEAT" : systemMode == SYS_COOL ? "COOL" : "AUTO",
     vacationModeActive ? " (VACATION)" : "", systemInFaultState, systemLockedOut, testMode);
+  if ((systemInFaultState || systemLockedOut) && g_safetyReason[0])
+    Serial.printf("Safety latch reason: %s (persists across reboot until 'reset fault'/'reset lockout')\n", g_safetyReason);
   Serial.printf("Targets: heat-to %.1fF / cool-to %.1fF  [%s]%s\n",
     lastResolved.heatSetpointF, lastResolved.coolSetpointF,
     targetSourceName(lastResolved.source), testMode ? " (stale: control suspended)" : "");
@@ -78,7 +80,7 @@ static void printStatus() {
 static void printHelp() {
   Serial.println(
     "Commands:\n"
-    "  status | sensors | relays | log | i2c | health [reset filter]\n"
+    "  status | sensors | relays | log [file] | i2c | health [reset filter|counters]\n"
     "  remote <tempF> [rh]         (emulate an indoor wireless probe report, honors staleness)\n"
     "  outdoor <tempF>             (emulate the outdoor probe; outranks the weather feed)\n"
     "  mode <off|heat|cool|auto>   vacation <on|off>\n"
@@ -197,14 +199,18 @@ static void handleLine(char* line) {
     Serial.println("ok");
   }
   else if (!strcmp(cmd, "reset") && a1) {
-    if (!strcmp(a1, "fault")) { systemInFaultState = false; logEvent("fault reset via console"); Serial.println("Fault cleared."); }
-    else if (!strcmp(a1, "lockout")) { resetLockout(); logEvent("lockout reset via console"); Serial.println("Lockout cleared."); }
+    if (!strcmp(a1, "fault")) { systemInFaultState = false; saveSafetyState(nullptr); logEvent("fault acknowledged via console"); Serial.println("Fault cleared."); }
+    else if (!strcmp(a1, "lockout")) { resetLockout(); saveSafetyState(nullptr); logEvent("lockout acknowledged via console"); Serial.println("Lockout cleared."); }
   }
   else if (!strcmp(cmd, "health")) {
     if (a1 && !strcmp(a1, "reset") && a2 && !strcmp(a2, "filter")) { health_resetFilter(); Serial.println("Filter runtime reset."); }
+    else if (a1 && !strcmp(a1, "reset") && a2 && !strcmp(a2, "counters")) { health_resetCounters(); Serial.println("All health counters reset."); }
     else printHealthReport();
   }
-  else if (!strcmp(cmd, "log")) { dumpEvents(); }
+  else if (!strcmp(cmd, "log")) {
+    if (a1 && !strcmp(a1, "file")) dumpJournal(); // flash journal (survives reboots)
+    else dumpEvents();                            // RAM ring (this boot only)
+  }
   else if (!strcmp(cmd, "i2c")) { i2cScan(); }
   else if (!strcmp(cmd, "save")) { saveSettings(); savePerformance(); health_flushIfDirty(); Serial.println("Saved settings + learning + health data."); }
   else if (!strcmp(cmd, "reboot")) { if (performanceDirty) savePerformance(); health_flushIfDirty(); Serial.println("Rebooting..."); Serial.flush(); esp_restart(); }

@@ -24,7 +24,9 @@ void advanceMockMillis(unsigned long ms) { g_mockMillis += ms; }
 void setMockSensors(float iF, float oF) { g_mockIndoorTempF = iF; g_mockOutdoorTempF = oF; }
 void resetHvacState() {
   for (int i=0; i<10; i++) g_mockRelayStates[i] = LOW;
-  g_mockMillis = 0;
+  // Nonzero: a cycle starting at mock time 0 would collide with the
+  // cycleStartTime==0 "no active cycle" sentinel and never reach the learner.
+  g_mockMillis = 1000000;
   systemLockedOut = false;
   initialize_logic_timers();
 }

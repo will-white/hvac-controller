@@ -140,7 +140,7 @@ void controlTemperature(float tempC, float heatTargetC, float coolTargetC, float
         cycleStartTime = 0; // abnormal cycle (fault/open window): don't feed it to the learner
         health_reportMaxRun(true);
         if (heaterMaxRunTriggers > 0 && (now - firstHeaterMaxRunTriggerTime > MAX_RUN_LOCKOUT_MS)) { heaterMaxRunTriggers = 1; firstHeaterMaxRunTriggerTime = now; }
-        else { if (heaterMaxRunTriggers == 0) firstHeaterMaxRunTriggerTime = now; heaterMaxRunTriggers++; if (heaterMaxRunTriggers >= MAX_RUN_TRIGGER_COUNT) { systemLockedOut = true; } }
+        else { if (heaterMaxRunTriggers == 0) firstHeaterMaxRunTriggerTime = now; heaterMaxRunTriggers++; if (heaterMaxRunTriggers >= MAX_RUN_TRIGGER_COUNT) { systemLockedOut = true; saveSafetyState("heater hit max-run limit 3x"); } }
     } else if (tempC >= heatTargetC && (isHeatingOn || freshAirHeating)) {
       if (isHeatingOn && (now - lastHeaterOnTime > MIN_HEATER_RUN_TIME_MS)) { writeRelay(HEATER_RELAY, LOW); lastHeaterOffTime = now; updatePerformanceData(true); }
       else if (freshAirHeating) { writeRelay(FRESH_AIR_RELAY, LOW); freshAirPurpose = FA_NONE; }
@@ -168,7 +168,7 @@ void controlTemperature(float tempC, float heatTargetC, float coolTargetC, float
         cycleStartTime = 0; // abnormal cycle (fault/open window): don't feed it to the learner
         health_reportMaxRun(false);
         if (coolerMaxRunTriggers > 0 && (now - firstCoolerMaxRunTriggerTime > MAX_RUN_LOCKOUT_MS)) { coolerMaxRunTriggers = 1; firstCoolerMaxRunTriggerTime = now; }
-        else { if (coolerMaxRunTriggers == 0) firstCoolerMaxRunTriggerTime = now; coolerMaxRunTriggers++; if (coolerMaxRunTriggers >= MAX_RUN_TRIGGER_COUNT) { systemLockedOut = true; } }
+        else { if (coolerMaxRunTriggers == 0) firstCoolerMaxRunTriggerTime = now; coolerMaxRunTriggers++; if (coolerMaxRunTriggers >= MAX_RUN_TRIGGER_COUNT) { systemLockedOut = true; saveSafetyState("cooler hit max-run limit 3x"); } }
     } else if (tempC <= coolTargetC && (isCoolingOn || freshAirCooling)) {
       if (isCoolingOn && (now - lastCoolerOnTime > MIN_COOLER_RUN_TIME_MS)) { writeRelay(COOLER_RELAY, LOW); lastCoolerOffTime = now; updatePerformanceData(false); }
       else if (freshAirCooling) { writeRelay(FRESH_AIR_RELAY, LOW); freshAirPurpose = FA_NONE; }

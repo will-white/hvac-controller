@@ -12,6 +12,7 @@ void health_reportCycleRate(bool isHeating, float rateFPerHr, float baselineAvg,
 void health_reportMaxRun(bool isHeating);
 void health_flushIfDirty();          // piggybacks on the batched NVS flush policy
 void health_resetFilter();           // console: after a filter change
+void health_resetCounters();         // console: zero ALL counters (after servicing)
 void printHealthReport();            // console `health`
 int  health_warningCount();
 

@@ -46,10 +46,10 @@ serviceable by an HVAC tech, and genuinely smarter than commercial stats.
 
 - [x] S.M.A.R.T.-style health rules (advisory): no-response calls (temp trend), capacity degradation vs learned baseline, short-cycling, filter runtime, MOD-IO2 bus failures, abnormal resets, sensor dropouts — persisted counters, console `health` report
 - [ ] Opto-input equipment feedback (24VAC sense: prove calls are answered; window contacts) — will strengthen the no-response rule from temp-trend inference to direct proof
-- [ ] Persistent lockout/fault across reboots with explicit acknowledge
-- [ ] Event journal persisted to LittleFS; reset-reason logging on every boot
+- [x] Persistent lockout/fault across reboots with explicit acknowledge (NVS-latched with trip reason; cleared only by `reset fault`/`reset lockout` on console or web)
+- [x] Event journal persisted to LittleFS (rotating, rate-limited; console `log file`); reset-reason logging on every boot
 - [ ] Host-native PlatformIO test env + CI (GitHub Actions running the Docker build + logic tests)
-- [ ] LED blink-codes for fault classes
+- [x] LED blink-codes for fault classes (EVB user LED GPIO8: fault/lockout/service/health/heartbeat patterns)
 
 ## Phase 6 — Differentiators
 

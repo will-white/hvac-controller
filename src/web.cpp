@@ -67,7 +67,7 @@ temp.textContent=s.temp;rh.textContent=s.rh;outdoor.textContent=s.outdoor;osrc.t
 hsp.textContent=s.heatSp;csp.textContent=s.coolSp;src.textContent=s.src;action.textContent=s.action;
 health.textContent=s.health;
 relays.innerHTML=s.relays.map(r=>'<span class="pill'+(r.on?' on':'')+'">'+r.n+'</span>').join('');
-flags.textContent=(s.fault?'FAULT ':'')+(s.lockout?'LOCKOUT ':'')+(s.service?'SERVICE-MODE ':'');
+flags.textContent=(s.fault?'FAULT ':'')+(s.lockout?'LOCKOUT ':'')+(s.service?'SERVICE-MODE ':'')+(s.why?'('+s.why+')':'');
 for(const m of ['off','heat','cool','auto'])document.getElementById('m_'+m).className=(s.mode==m)?'active':'';
 }catch(e){}}
 refresh();setInterval(refresh,5000);
@@ -93,18 +93,20 @@ static void handleStatus() {
                     i ? "," : "", names[i], readRelay(i) ? 1 : 0);
   }
 
-  char buf[560];
+  char buf[640];
   float rh = readHumidity();
   float outdoor = readOutdoorTemperature();
   snprintf(buf, sizeof(buf),
     "{\"temp\":%.1f,\"rh\":%.0f,\"outdoor\":%.1f,\"outdoorSrc\":\"%s\","
     "\"heatSp\":%.1f,\"coolSp\":%.1f,\"src\":\"%s\",\"mode\":\"%s\",\"action\":\"%s\","
     "\"relays\":[%s],\"fault\":%d,\"lockout\":%d,\"service\":%d,\"health\":%d,"
-    "\"rssi\":%d,\"uptime\":%lu}",
+    "\"why\":\"%s\",\"rssi\":%d,\"uptime\":%lu}",
     lastIndoorF, isnan(rh) ? -1.0f : rh, isnan(outdoor) ? -99.0f : outdoor,
     sensors_outdoorSource(), lastResolved.heatSetpointF, lastResolved.coolSetpointF,
     targetSourceName(lastResolved.source), modeName(systemMode), action, relays,
     systemInFaultState, systemLockedOut, console_testModeActive() ? 1 : 0, health_warningCount(),
+    // reason strings are compile-time constants (no quotes/backslashes to escape)
+    (systemInFaultState || systemLockedOut) ? g_safetyReason : "",
     (int)WiFi.RSSI(), millis() / 1000UL);
   server.send(200, "application/json", buf);
 }
@@ -129,8 +131,8 @@ static void handleHold() {
 
 static void handleReset() {
   String what = server.arg("what");
-  if (what == "fault") { systemInFaultState = false; logEvent("fault reset via web"); }
-  else if (what == "lockout") { resetLockout(); logEvent("lockout reset via web"); }
+  if (what == "fault") { systemInFaultState = false; saveSafetyState(nullptr); logEvent("fault acknowledged via web"); }
+  else if (what == "lockout") { resetLockout(); saveSafetyState(nullptr); logEvent("lockout acknowledged via web"); }
   else { server.send(400, "text/plain", "bad target"); return; }
   server.send(200, "text/plain", "ok");
 }

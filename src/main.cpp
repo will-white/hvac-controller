@@ -15,6 +15,7 @@
 #include "relays.h"
 #include "sensors.h"
 #include "setpoints.h"
+#include "status_led.h"
 #include "utils.h"
 #include "weather.h"
 #include "web.h"
@@ -35,6 +36,7 @@ ResolvedTargets lastResolved = { NO_TIME_FALLBACK_HEAT_F, NO_TIME_FALLBACK_COOL_
                                  FAN_AUTO, DEFAULT_SYSTEM_MODE, SRC_NO_TIME_FALLBACK };
 float lastIndoorF = NAN;
 bool performanceDirty = false;
+char g_safetyReason[64] = "";
 
 // =================================================================
 // ==              HARDWARE ABSTRACTION & UTILITIES               ==
@@ -87,6 +89,22 @@ void savePerformance() {
     performanceDirty = false;
 }
 
+// Fault/lockout must survive a reboot: a power blip (or a panic mid-lockout)
+// must not silently un-latch a safety state. Written immediately on change —
+// these fire a handful of times per equipment lifetime, so wear is a non-issue.
+void saveSafetyState(const char* reason) {
+    if (g_isTesting) return;
+    if (reason) snprintf(g_safetyReason, sizeof(g_safetyReason), "%s", reason);
+    else g_safetyReason[0] = '\0';
+    nvs_handle_t my_handle;
+    if (nvs_open("hvac_cfg", NVS_READWRITE, &my_handle) != ESP_OK) return;
+    nvs_set_u8(my_handle, "fault", systemInFaultState ? 1 : 0);
+    nvs_set_u8(my_handle, "lockout", systemLockedOut ? 1 : 0);
+    nvs_set_str(my_handle, "safetyWhy", g_safetyReason);
+    nvs_commit(my_handle);
+    nvs_close(my_handle);
+}
+
 void loadSettings() {
     nvs_handle_t my_handle;
     esp_err_t err = nvs_open("hvac_cfg", NVS_READONLY, &my_handle);
@@ -114,6 +132,17 @@ void loadSettings() {
     if(nvs_get_i8(my_handle, "tempUnit", &temp_i8) == ESP_OK) tempUnit = (TempUnit)temp_i8;
     if(nvs_get_i8(my_handle, "systemMode", &temp_i8) == ESP_OK) systemMode = (SystemMode)temp_i8;
     if(nvs_get_i8(my_handle, "vacation", &temp_i8) == ESP_OK) vacationModeActive = (bool)temp_i8;
+
+    // Restore latched safety state: it clears only via explicit acknowledge
+    // (`reset fault` / `reset lockout` on the console or web), never by reboot.
+    uint8_t u8 = 0;
+    if (nvs_get_u8(my_handle, "fault", &u8) == ESP_OK && u8) systemInFaultState = true;
+    u8 = 0;
+    if (nvs_get_u8(my_handle, "lockout", &u8) == ESP_OK && u8) systemLockedOut = true;
+    size_t reasonSize = sizeof(g_safetyReason);
+    if (nvs_get_str(my_handle, "safetyWhy", g_safetyReason, &reasonSize) != ESP_OK) {
+        g_safetyReason[0] = '\0';
+    }
 
     nvs_close(my_handle);
 }
@@ -196,6 +225,7 @@ static void controlTick() {
   if (!validateSensorReadings(indoorF)) {
     systemInFaultState = true;
     logEvent("FAULT: indoor sensor implausible (%.1fF)", indoorF);
+    saveSafetyState("indoor sensor implausible");
     return;
   }
   lastIndoorF = indoorF;
@@ -298,6 +328,17 @@ void setup() {
   // Filesystem init must come before the watchdog is armed: a first-boot
   // format can block far longer than the WDT timeout.
   initialize_learning();
+  events_begin(); // flash journal (needs LittleFS); earlier events stay RAM-only
+
+  if (systemInFaultState || systemLockedOut) {
+    // Terse: the RAM ring caps messages at 56 chars and the reason must fit.
+    logEvent("SAFETY restored: %s%s(%s)",
+             systemInFaultState ? "FAULT " : "", systemLockedOut ? "LOCKOUT " : "",
+             g_safetyReason[0] ? g_safetyReason : "reason unknown");
+    Serial.printf("SAFETY STATE RESTORED: %s%s(%s). Fix the cause, then 'reset fault' / 'reset lockout'.\n",
+                  systemInFaultState ? "FAULT " : "", systemLockedOut ? "LOCKOUT " : "",
+                  g_safetyReason[0] ? g_safetyReason : "reason unknown");
+  }
 
   // IDF 5 / Arduino core 3.x: the task WDT is already initialized at startup,
   // so reconfigure it (fall back to init if this build has it disabled).
@@ -313,13 +354,14 @@ void setup() {
   runTests();
 
   initRelays(); // EVB GPIO relays + MOD-IO2 I2C bus, everything driven off
+  statusLed_begin();
   sensors_begin();
   net_time_begin();
   mqtt_begin();
   console_begin();
   health_begin();
   initialize_logic_timers();
-  logEvent("boot complete (reset reason %d)", (int)esp_reset_reason());
+  logEvent("boot complete (reset reason: %s)", resetReasonName((int)esp_reset_reason()));
 
   Serial.println("Initialization Complete. Applying power-on delay...");
   safeDelay(5000);
@@ -330,6 +372,7 @@ void loop() {
   esp_task_wdt_reset();
 
   console_poll();   // serial commands, sim clock, service-mode safety timers
+  statusLed_poll(); // blink codes (fault/lockout/service/health/heartbeat)
   net_time_poll();  // WiFi reconnect state machine
   weather_poll();   // outdoor temp fetch (no-op without WiFi/coordinates)
   mqtt_poll();      // HA entity + Zigbee2MQTT probe ingestion (no-op unconfigured)
