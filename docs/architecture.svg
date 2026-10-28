@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 860" width="1200" height="860" role="img" aria-label="Network diagram of the thermostat, home server, sensors, internet services and HVAC equipment">
+    <style>
+:root {
+  --bg: #f3f5f7;
+  --panel: #ffffff;
+  --group: #e8ecf0;
+  --ink: #18212b;
+  --muted: #5a6573;
+  --rule: #c5ccd5;
+  --net: #2463a6;
+  --zig: #8048b8;
+  --wire: #2f7a4a;
+  --hvac: #b8601c;
+  --warn-bg: #fbf1e6;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151a; --panel: #1a2028; --group: #161b22; --ink: #e5e9ef; --muted: #98a3b1;
+    --rule: #344150; --net: #6ea8e8; --zig: #b98be8; --wire: #6cc08a; --hvac: #e8955a;
+    --warn-bg: #2a2018; color-scheme: dark;
+  }
+}
+.bg { fill: var(--panel); }
+svg text { font-family: var(--font-body); fill: var(--ink); }
+.grp { fill: var(--group); stroke: var(--rule); stroke-width: 1; }
+.glabel { font-size: 11px; font-weight: 600; letter-spacing: 0.09em; fill: var(--muted); }
+.node rect { fill: var(--panel); stroke: var(--rule); stroke-width: 1.2; }
+.node.planned rect { stroke-dasharray: 5 4; stroke: var(--muted); }
+.node.main > rect { stroke: var(--ink); stroke-width: 1.6; }
+.t { font-size: 13.5px; font-weight: 600; text-anchor: middle; }
+.s { font-size: 11.5px; fill: var(--muted); text-anchor: middle; font-family: var(--font-mono); }
+.fw rect { fill: var(--group); stroke: none; }
+.fwh { font-size: 10.5px; font-weight: 600; letter-spacing: 0.09em; fill: var(--muted); }
+.fwl { font-size: 12px; }
+.note { font-size: 11px; fill: var(--muted); font-family: var(--font-mono); }
+.e { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.e.net { stroke: var(--net); } .e.zig { stroke: var(--zig); } .e.wire { stroke: var(--wire); } .e.hvac { stroke: var(--hvac); }
+.e.thick { stroke-width: 3; }
+.e.dash { stroke-dasharray: 6 4; }
+.mk.net { fill: var(--net); } .mk.zig { fill: var(--zig); } .mk.wire { fill: var(--wire); } .mk.hvac { fill: var(--hvac); }
+.pill rect { fill: var(--panel); stroke: none; }
+.pill text { font-size: 11px; font-family: var(--font-mono); text-anchor: middle; dominant-baseline: central; }
+.pill.net text { fill: var(--net); } .pill.zig text { fill: var(--zig); } .pill.wire text { fill: var(--wire); } .pill.hvac text { fill: var(--hvac); }
+
+</style>
+    <rect class="bg" x="0" y="0" width="1200" height="860"/>
+    <defs>
+      <marker id="a-net" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk net" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="a-zig" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk zig" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="a-wire" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk wire" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="a-hvac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk hvac" d="M0,0 L10,5 L0,10 z"/></marker>
+    </defs>
+
+    <!-- Groups -->
+    <rect class="grp" x="285" y="118" width="350" height="512" rx="10"/>
+    <text class="glabel" x="300" y="138">HOME SERVER</text>
+    <rect class="grp" x="15" y="470" width="220" height="170" rx="10"/>
+    <text class="glabel" x="28" y="489">ZIGBEE SENSORS</text>
+    <rect class="grp" x="665" y="20" width="520" height="88" rx="10"/>
+    <text class="glabel" x="680" y="38">INTERNET</text>
+    <rect class="grp" x="665" y="140" width="520" height="480" rx="10"/>
+    <text class="glabel" x="680" y="159">THERMOSTAT</text>
+    <rect class="grp" x="665" y="640" width="520" height="205" rx="10"/>
+    <text class="glabel" x="680" y="838">HVAC EQUIPMENT · 24 VAC</text>
+
+    <!-- Edges (drawn under nodes) -->
+    <path class="e net" d="M120,150 V14 H650 V300 H685" marker-start="url(#a-net)" marker-end="url(#a-net)"/>
+    <path class="e net" d="M460,86 V152" marker-start="url(#a-net)" marker-end="url(#a-net)"/>
+    <path class="e net" d="M460,208 V252" marker-start="url(#a-net)" marker-end="url(#a-net)"/>
+    <path class="e net" d="M460,308 V352" marker-start="url(#a-net)" marker-end="url(#a-net)"/>
+    <path class="e net" d="M460,452 V408" marker-end="url(#a-net)"/>
+    <path class="e wire" d="M460,552 V508" marker-end="url(#a-wire)"/>
+    <path class="e zig" d="M220,526 L310,572" marker-end="url(#a-zig)"/>
+    <path class="e zig" d="M220,596 L310,588" marker-end="url(#a-zig)"/>
+    <path class="e net thick" d="M610,380 H685" marker-start="url(#a-net)" marker-end="url(#a-net)"/>
+    <path class="e net" d="M810,170 V92" marker-start="url(#a-net)" marker-end="url(#a-net)"/>
+    <path class="e net" d="M968,170 V92" marker-end="url(#a-net)"/>
+    <path class="e wire" d="M220,728 H650 V420 H685" marker-start="url(#a-wire)" marker-end="url(#a-wire)"/>
+    <path class="e wire" d="M1005,218 V340 M985,280 H1005 M1005,218 H1025 M1005,340 H1025"/>
+    <path class="e hvac" d="M1170,230 H1180 V752 H1110 V770" marker-end="url(#a-hvac)"/>
+
+    <!-- Edge labels -->
+    <g class="pill net"><rect x="292" y="5" width="196" height="18" rx="4"/><text x="390" y="14">HTTP :80 · dashboard + /api</text></g>
+    <g class="pill net"><rect x="466" y="93" width="86" height="18" rx="4"/><text x="509" y="102">Matter · LAN</text></g>
+    <g class="pill net"><rect x="468" y="221" width="58" height="18" rx="4"/><text x="497" y="230">HA API</text></g>
+    <g class="pill net"><rect x="468" y="321" width="40" height="18" rx="4"/><text x="488" y="330">MQTT</text></g>
+    <g class="pill net"><rect x="468" y="421" width="124" height="18" rx="4"/><text x="530" y="430">publish · JSON °C</text></g>
+    <g class="pill wire"><rect x="468" y="521" width="78" height="18" rx="4"/><text x="507" y="530">USB serial</text></g>
+    <g class="pill zig"><rect x="240" y="540" width="52" height="18" rx="4"/><text x="266" y="549">Zigbee</text></g>
+    <g class="pill net"><rect x="612" y="345" width="72" height="18" rx="4"/><text x="648" y="354">MQTT 1883</text></g>
+    <g class="pill net"><rect x="817" y="115" width="94" height="18" rx="4"/><text x="864" y="124">HTTP · 10 min</text></g>
+    <g class="pill net"><rect x="975" y="115" width="40" height="18" rx="4"/><text x="995" y="124">SNTP</text></g>
+    <g class="pill wire"><rect x="330" y="719" width="210" height="18" rx="4"/><text x="435" y="728">USB-C serial · OTA over WiFi</text></g>
+    <text class="note" x="1012" y="279" transform="rotate(-90 1016 279)" text-anchor="middle" style="fill:var(--wire)">UEXT · I²C</text>
+
+    <!-- Left column -->
+    <g class="node"><rect x="20" y="150" width="200" height="56" rx="7"/>
+      <text class="t" x="120" y="174">Phone / browser</text><text class="s" x="120" y="193">web dashboard</text></g>
+    <g class="node"><rect x="30" y="500" width="190" height="52" rx="7"/>
+      <text class="t" x="125" y="522">Indoor Aqara probe</text><text class="s" x="125" y="540">temp + humidity</text></g>
+    <g class="node planned"><rect x="30" y="570" width="190" height="52" rx="7"/>
+      <text class="t" x="125" y="592">Outdoor Aqara probe</text><text class="s" x="125" y="610">optional</text></g>
+    <g class="node"><rect x="20" y="700" width="200" height="56" rx="7"/>
+      <text class="t" x="120" y="724">Laptop</text><text class="s" x="120" y="743">build · flash · console</text></g>
+
+    <!-- Home server -->
+    <g class="node planned"><rect x="300" y="30" width="320" height="56" rx="7"/>
+      <text class="t" x="460" y="54">Apple Home · Google Home · Alexa</text><text class="s" x="460" y="73">Matter controllers</text></g>
+    <g class="node planned"><rect x="310" y="152" width="300" height="56" rx="7"/>
+      <text class="t" x="460" y="176">Matterbridge</text><text class="s" x="460" y="195">HA add-on · exports Matter</text></g>
+    <g class="node"><rect x="310" y="252" width="300" height="56" rx="7"/>
+      <text class="t" x="460" y="276">Home Assistant</text><text class="s" x="460" y="295">MQTT discovery · climate entity</text></g>
+    <g class="node"><rect x="310" y="352" width="300" height="56" rx="7"/>
+      <text class="t" x="460" y="376">MQTT broker</text><text class="s" x="460" y="395">e.g. Mosquitto · TCP 1883</text></g>
+    <g class="node"><rect x="310" y="452" width="300" height="56" rx="7"/>
+      <text class="t" x="460" y="476">Zigbee2MQTT</text><text class="s" x="460" y="495">zigbee2mqtt/&lt;probe&gt;</text></g>
+    <g class="node"><rect x="310" y="552" width="300" height="56" rx="7"/>
+      <text class="t" x="460" y="576">USB Zigbee dongle</text><text class="s" x="460" y="595">Zigbee coordinator</text></g>
+
+    <!-- Internet -->
+    <g class="node"><rect x="700" y="48" width="220" height="44" rx="7"/>
+      <text class="t" x="810" y="66">open-meteo</text><text class="s" x="810" y="83">outdoor temperature</text></g>
+    <g class="node"><rect x="950" y="48" width="210" height="44" rx="7"/>
+      <text class="t" x="1055" y="66">pool.ntp.org</text><text class="s" x="1055" y="83">clock for schedule</text></g>
+
+    <!-- Thermostat -->
+    <g class="node main"><rect x="685" y="170" width="300" height="430" rx="8"/>
+      <text class="t" x="835" y="196" style="font-size:15px">ESP32-C6-EVB</text>
+      <text class="s" x="835" y="214">Olimex main board · WiFi 2.4 GHz</text>
+      <g class="fw"><rect x="700" y="230" width="270" height="160" rx="6"/></g>
+      <text class="fwh" x="712" y="250">FIRMWARE</text>
+      <text class="fwl" x="712" y="272">Control loop · every 5 s</text>
+      <text class="fwl" x="712" y="292">MQTT client · subscribe + publish</text>
+      <text class="fwl" x="712" y="312">Web server · port 80 + /api</text>
+      <text class="fwl" x="712" y="332">OTA updates · ArduinoOTA</text>
+      <text class="fwl" x="712" y="352">Weather fetch · SNTP clock</text>
+      <text class="fwl" x="712" y="372">Serial console · USB-C</text>
+      <text class="note" x="712" y="412">User LED (GPIO 8) · blink codes</text>
+      <g class="node"><rect x="700" y="440" width="130" height="70" rx="6"/>
+        <text class="t" x="765" y="462">Opto inputs</text><text class="s" x="765" y="480">OPT1–4</text><text class="s" x="765" y="496">GPIO 1/2/3/15</text></g>
+      <g class="node"><rect x="840" y="440" width="130" height="70" rx="6"/>
+        <text class="t" x="905" y="462">Relays</text><text class="s" x="905" y="480">REL1–4</text><text class="s" x="905" y="496">GPIO 10/11/22/23</text></g>
+      <text class="note" x="712" y="570">EVB relays open on any reset</text>
+    </g>
+    <path class="e hvac thick" d="M905,510 V668 M737,668 H1106 M737,668 V690 M860,668 V690 M983,668 V690 M1106,668 V690"/>
+    <path class="e hvac dash" d="M790,668 V510" marker-end="url(#a-hvac)"/>
+    <path class="e hvac dash" d="M680,795 H673 V475 H700" marker-end="url(#a-hvac)"/>
+    <g class="pill hvac"><rect x="744" y="623" width="92" height="18" rx="4"/><text x="790" y="632">24 VAC sense</text></g>
+    <g class="pill hvac"><rect x="855" y="623" width="100" height="18" rx="4"/><text x="905" y="632">relay contacts</text></g>
+    <g class="node"><rect x="1025" y="170" width="145" height="96" rx="7"/>
+      <text class="t" x="1097" y="194">MOD-IO2 Rev.B</text><text class="s" x="1097" y="213">I²C 0x21</text><text class="s" x="1097" y="230">2 relays · own 12 V</text>
+      <text class="s" x="1097" y="252" style="fill:var(--hvac)">latches if C6 stops</text></g>
+    <g class="node planned"><rect x="1025" y="300" width="145" height="80" rx="7"/>
+      <text class="t" x="1097" y="324">SHT4x</text><text class="s" x="1097" y="343">I²C 0x44</text><text class="s" x="1097" y="360">local fallback</text></g>
+
+    <!-- HVAC equipment -->
+    <g class="node"><rect x="680" y="690" width="115" height="50" rx="7"/>
+      <text class="t" x="737" y="711">Furnace</text><text class="s" x="737" y="729">W · heat</text></g>
+    <g class="node"><rect x="803" y="690" width="115" height="50" rx="7"/>
+      <text class="t" x="860" y="711">A/C</text><text class="s" x="860" y="729">Y · cool</text></g>
+    <g class="node"><rect x="926" y="690" width="115" height="50" rx="7"/>
+      <text class="t" x="983" y="711">Blower</text><text class="s" x="983" y="729">G · fan</text></g>
+    <g class="node"><rect x="1049" y="690" width="115" height="50" rx="7"/>
+      <text class="t" x="1106" y="711">Damper</text><text class="s" x="1106" y="729">fresh air</text></g>
+    <g class="node"><rect x="680" y="770" width="180" height="50" rx="7"/>
+      <text class="t" x="770" y="791">Window contact</text><text class="s" x="770" y="809">OPT4</text></g>
+    <g class="node"><rect x="1049" y="770" width="121" height="50" rx="7"/>
+      <text class="t" x="1109" y="791">Humidifier</text><text class="s" x="1109" y="809">MOD-IO2 relay 1</text></g>
+  </svg>

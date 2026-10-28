@@ -31,6 +31,8 @@ This project is a feature-rich, single-zone HVAC thermostat built on the ESP32-C
 
 ## Connectivity
 
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a diagram of how the thermostat, sensors, home server and HVAC equipment connect.
+
 With WiFi configured, the controller exposes (each independently opt-in via `secrets.h`):
 
 * **Web dashboard** at the device's IP: live temperature/targets with provenance, relay states, mode buttons, temporary holds, and fault/lockout reset. JSON API under `/api/` for scripting.
