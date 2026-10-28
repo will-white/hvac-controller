@@ -11,6 +11,6 @@ extern float g_mockIndoorTempF;
 extern float g_mockOutdoorTempF;
 extern bool g_mockRelayStates[10];
 
-void runTests();
+int runTests(); // returns the number of failed tests
 
 #endif // HVAC_TESTS_H

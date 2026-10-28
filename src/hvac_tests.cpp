@@ -6,6 +6,7 @@
 #include "main.h"
 #include "hvac_logic.h"
 #include "health.h"
+#include "ota.h"
 #include "setpoints.h"
 #include "utils.h"
 
@@ -31,7 +32,10 @@ void resetHvacState() {
   initialize_logic_timers();
 }
 
+static int g_testFailures = 0;
+
 void test(const char* testName, bool condition) {
+  if (!condition) g_testFailures++;
   Serial.print("Test: "); Serial.print(testName); Serial.print(" ... ");
   Serial.println(condition ? "[PASS]" : "[FAIL]");
 }
@@ -125,8 +129,30 @@ void testPerformanceLearning() {
 
 // ... other test suites (min/max time, lockout, etc.) ...
 
-void runTests() {
+void testOtaHelpers() {
+  Serial.println("  --- Testing Update Helpers ---");
+  char sha[48], ver[32];
+  const char* good = "{\"sha\": \"20ba7d4c0ffee0000000000000000000000000ab\", \"version\": \"r12-20ba7d4\"}";
+  test("    1. Manifest parses sha + version",
+       ota_parseManifest(good, sha, sizeof(sha), ver, sizeof(ver)) &&
+       !strcmp(sha, "20ba7d4c0ffee0000000000000000000000000ab") && !strcmp(ver, "r12-20ba7d4"));
+  test("    2. Manifest rejects short sha", !ota_parseManifest("{\"sha\":\"20ba7d4\"}", sha, sizeof(sha), ver, sizeof(ver)));
+  test("    3. Manifest rejects HTML (redirect page)", !ota_parseManifest("<html>302</html>", sha, sizeof(sha), ver, sizeof(ver)));
+  // Minimal ESP32-C6 app image prefix: header magic, chip id 0x000D at 12,
+  // app-descriptor magic 0xABCD5432 at 32 (little-endian).
+  uint8_t img[40] = {0};
+  img[0] = 0xE9; img[12] = 0x0D;
+  img[32] = 0x32; img[33] = 0x54; img[34] = 0xCD; img[35] = 0xAB;
+  test("    4. Accepts a C6 app image", ota_isAppImage(img, sizeof(img)));
+  img[33] = 0x00;
+  test("    5. Rejects bootloader/factory image (no app descriptor)", !ota_isAppImage(img, sizeof(img)));
+  img[33] = 0x54; img[12] = 0x05;
+  test("    6. Rejects another chip's image", !ota_isAppImage(img, sizeof(img)));
+}
+
+int runTests() {
   g_isTesting = true;
+  g_testFailures = 0;
 
   // These tests run on every boot and mutate real state (testPerformanceLearning
   // wipes `performance` outright). Snapshot everything they touch and restore it
@@ -142,11 +168,13 @@ void runTests() {
   testHealthRules();
   testOptoProofRules();
   testPerformanceLearning();
+  testOtaHelpers();
   // ... call other test suites ...
 
   performance = savedPerformance;
   programSchedule = savedSchedule;
   vacationModeActive = savedVacation;
   g_isTesting = false;
-  Serial.println("--- Self-Test Suite Complete ---\n");
+  Serial.printf("--- Self-Test Suite Complete: %d failure(s) ---\n\n", g_testFailures);
+  return g_testFailures;
 }

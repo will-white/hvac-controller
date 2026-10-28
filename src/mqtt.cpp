@@ -6,6 +6,7 @@
 #include <cstring>
 #include "config.h"
 #include "events.h"
+#include "fw_version.h"
 #include "health.h"
 #include "main.h"
 #include "net_time.h"
@@ -13,22 +14,7 @@
 #include "sensors.h"
 #include "setpoints.h"
 #include "utils.h"
-
-#if __has_include("secrets.h")
-#include "secrets.h"
-#endif
-#ifndef MQTT_HOST
-#define MQTT_HOST ""
-#define MQTT_PORT 1883
-#define MQTT_USER ""
-#define MQTT_PASS ""
-#endif
-#ifndef Z2M_INDOOR_TOPIC
-#define Z2M_INDOOR_TOPIC ""
-#endif
-#ifndef Z2M_OUTDOOR_TOPIC
-#define Z2M_OUTDOOR_TOPIC ""
-#endif
+#include "netconfig.h"
 
 static WiFiClient wifiClient;
 static PubSubClient client(wifiClient);
@@ -39,7 +25,7 @@ static unsigned long lastStateMs = 0;
 static bool everConnected = false;
 static bool connectFailLogged = false;
 
-static bool enabled() { return MQTT_HOST[0] != '\0'; }
+static bool enabled() { return netcfg().mqttHost[0] != '\0'; }
 bool mqtt_connected() { return enabled() && client.connected(); }
 
 static const char* modeName(SystemMode m) {
@@ -95,8 +81,9 @@ static void publishDiscovery() {
     "\"curr_temp_t\":\"~/temp\",\"curr_hum_t\":\"~/rh\",\"act_t\":\"~/action\","
     "\"avty_t\":\"~/availability\",\"min_temp\":40,\"max_temp\":95,"
     "\"temp_step\":0.5,\"temperature_unit\":\"F\","
-    "\"dev\":{\"ids\":[\"%s\"],\"name\":\"HVAC Controller\",\"mf\":\"DIY\",\"mdl\":\"Olimex ESP32-C6-EVB\"}}",
-    deviceId, baseTopic, deviceId);
+    "\"dev\":{\"ids\":[\"%s\"],\"name\":\"HVAC Controller\",\"mf\":\"DIY\",\"mdl\":\"Olimex ESP32-C6-EVB\","
+    "\"sw\":\"%s\"}}",
+    deviceId, baseTopic, deviceId, FW_VERSION);
   client.publish(cfgTopic, buf, true);
 
   // Outdoor temperature sensor.
@@ -164,12 +151,12 @@ static void onMessage(char* topic, byte* payload, unsigned int length) {
 
   // Zigbee2MQTT probe payloads: {"temperature":21.5,"humidity":45.2,"battery":100,...}
   // Z2M default units: Celsius.
-  if (Z2M_INDOOR_TOPIC[0] && !strcmp(topic, Z2M_INDOOR_TOPIC)) {
+  if (netcfg().z2mIndoor[0] && !strcmp(topic, netcfg().z2mIndoor)) {
     float tC = jsonNumber(buf, "temperature");
     if (!isnan(tC)) sensors_injectRemote(celsiusToFahrenheit(tC), jsonNumber(buf, "humidity"));
     float batt = jsonNumber(buf, "battery");
     if (!isnan(batt) && batt < 15) logEvent("HEALTH: indoor probe battery low (%.0f%%)", batt);
-  } else if (Z2M_OUTDOOR_TOPIC[0] && !strcmp(topic, Z2M_OUTDOOR_TOPIC)) {
+  } else if (netcfg().z2mOutdoor[0] && !strcmp(topic, netcfg().z2mOutdoor)) {
     float tC = jsonNumber(buf, "temperature");
     if (!isnan(tC)) sensors_injectOutdoorProbe(celsiusToFahrenheit(tC));
     float batt = jsonNumber(buf, "battery");
@@ -183,7 +170,7 @@ void mqtt_begin() {
   WiFi.macAddress(mac);
   snprintf(deviceId, sizeof(deviceId), "hvacc6-%02x%02x%02x", mac[3], mac[4], mac[5]);
   snprintf(baseTopic, sizeof(baseTopic), "hvac/%s", deviceId);
-  client.setServer(MQTT_HOST, MQTT_PORT);
+  client.setServer(netcfg().mqttHost, netcfg().mqttPort);
   client.setBufferSize(1280); // HA discovery payloads exceed the 256B default
   client.setCallback(onMessage);
 }
@@ -197,8 +184,8 @@ void mqtt_poll() {
     char avty[64];
     snprintf(avty, sizeof(avty), "%s/availability", baseTopic);
     bool ok = client.connect(deviceId,
-                             MQTT_USER[0] ? MQTT_USER : nullptr,
-                             MQTT_PASS[0] ? MQTT_PASS : nullptr,
+                             netcfg().mqttUser[0] ? netcfg().mqttUser : nullptr,
+                             netcfg().mqttPass[0] ? netcfg().mqttPass : nullptr,
                              avty, 0, true, "offline");
     if (ok) {
       everConnected = true;
@@ -208,13 +195,13 @@ void mqtt_poll() {
       char sub[64];
       snprintf(sub, sizeof(sub), "%s/cmd/#", baseTopic);
       client.subscribe(sub);
-      if (Z2M_INDOOR_TOPIC[0]) client.subscribe(Z2M_INDOOR_TOPIC);
-      if (Z2M_OUTDOOR_TOPIC[0]) client.subscribe(Z2M_OUTDOOR_TOPIC);
+      if (netcfg().z2mIndoor[0]) client.subscribe(netcfg().z2mIndoor);
+      if (netcfg().z2mOutdoor[0]) client.subscribe(netcfg().z2mOutdoor);
       publishDiscovery();
       publishState();
     } else if (!connectFailLogged) {
       connectFailLogged = true;
-      logEvent("mqtt connect failed (rc %d)%s", client.state(), everConnected ? "" : " - check secrets.h");
+      logEvent("mqtt connect failed (rc %d)%s", client.state(), everConnected ? "" : " - check net settings");
     }
     return;
   }

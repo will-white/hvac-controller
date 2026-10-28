@@ -12,6 +12,8 @@
 #include "inputs.h"
 #include "main.h"
 #include "net_time.h"
+#include "netconfig.h"
+#include "ota.h"
 #include "relays.h"
 #include "sensors.h"
 #include "setpoints.h"
@@ -35,7 +37,7 @@ static unsigned long relayOnSinceRealMs[RELAY_COUNT] = {0};
 
 static const char* RELAY_NAMES[RELAY_COUNT] = {"heat", "cool", "fan", "damper", "hum", "spare"};
 
-static char lineBuf[96];
+static char lineBuf[160]; // fits "net set z2m_outdoor <95-char topic>"
 static int lineLen = 0;
 
 unsigned long console_virtualMillis() { return virtualMs; }
@@ -90,7 +92,10 @@ static void printHelp() {
     "  relay <heat|cool|fan|damper|hum|spare> <on|off> [force]\n"
     "  sim temp <F|nan> | sim outdoor <F|nan> | sim rh <pct> | sim time <dow0-6> <HH:MM> [month]\n"
     "  sim speed <n> | sim off\n"
-    "  reset <fault|lockout>       save | reboot | factory confirm");
+    "  reset <fault|lockout>       save | reboot | factory confirm\n"
+    "  version | update [check|install|mode <auto|notify|off>]\n"
+    "  net                         (show network settings; passwords masked)\n"
+    "  net set <key> <value>       (stored in NVS, applies after reboot; empty value clears)");
 }
 
 static void handleRelayCmd(const char* name, const char* action, const char* flag) {
@@ -125,7 +130,26 @@ static void i2cScan() {
   Serial.printf("%d device(s).\n", found);
 }
 
+// `net set <key> <value...>` keeps the rest of the line intact: WiFi names
+// and passwords may contain spaces, which strtok would split.
+static bool handleNetSet(char* line) {
+  if (strncmp(line, "net set ", 8) != 0) return false;
+  char* key = line + 8;
+  while (*key == ' ') key++;
+  char* value = strchr(key, ' ');
+  if (value) { *value++ = '\0'; } else { value = key + strlen(key); }
+  if (!*key) { Serial.printf("Usage: net set <key> <value>\nKeys: %s\n", netcfg_keys()); return true; }
+  if (netcfg_set(key, value)) {
+    Serial.printf("%s %s. Reboot to apply.\n", key, *value ? "saved" : "cleared");
+    logEvent("net setting %s changed", key);
+  } else {
+    Serial.printf("Refused: unknown key or value too long. Keys: %s\n", netcfg_keys());
+  }
+  return true;
+}
+
 static void handleLine(char* line) {
+  if (handleNetSet(line)) return;
   char* cmd = strtok(line, " ");
   if (!cmd) return;
   char* a1 = strtok(nullptr, " ");
@@ -223,6 +247,16 @@ static void handleLine(char* line) {
   else if (!strcmp(cmd, "i2c")) { i2cScan(); }
   else if (!strcmp(cmd, "save")) { saveSettings(); savePerformance(); health_flushIfDirty(); Serial.println("Saved settings + learning + health data."); }
   else if (!strcmp(cmd, "reboot")) { if (performanceDirty) savePerformance(); health_flushIfDirty(); Serial.println("Rebooting..."); Serial.flush(); esp_restart(); }
+  else if (!strcmp(cmd, "version")) { ota_printStatus(); }
+  else if (!strcmp(cmd, "update")) {
+    OtaMode m;
+    if (!a1) ota_printStatus();
+    else if (!strcmp(a1, "check")) { ota_requestCheck(); Serial.println("Checking the release channel..."); }
+    else if (!strcmp(a1, "install")) { ota_requestInstall(); Serial.println("Install requested: relays go off, then download, flash and reboot."); }
+    else if (!strcmp(a1, "mode") && ota_parseMode(a2, &m)) { ota_setMode(m); Serial.printf("Update mode: %s\n", ota_modeName(m)); }
+    else Serial.println("Usage: update [check|install|mode <auto|notify|off>]");
+  }
+  else if (!strcmp(cmd, "net")) { netcfg_print(); }
   else if (!strcmp(cmd, "factory")) {
     if (a1 && !strcmp(a1, "confirm")) { nvs_flash_erase(); Serial.println("NVS erased. Rebooting..."); Serial.flush(); esp_restart(); }
     else Serial.println("This erases ALL settings and learned data. Type 'factory confirm' to proceed.");

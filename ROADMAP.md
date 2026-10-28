@@ -26,6 +26,22 @@ Chosen: **keep the single C6 and get Zigbee and Matter through Home Assistant**.
   (H2/C6) as a dedicated Zigbee coordinator over UEXT UART, which is Espressif's
   reference gateway split.
 
+## Phase 0 — Safe WiFi updates (current focus, 2026-10-28)
+
+Goal: ship and verify firmware without a USB cable, so changes (including
+agent-made ones) reach the thermostat over WiFi, with USB as the fallback.
+
+- [x] Credentials in NVS (`netconfig`), seeded from secrets.h, so CI builds without secrets stay online; console `net set`
+- [x] Build identity: `scripts/version.py` stamps `FW_VERSION` / `FW_GIT_SHA`
+- [x] CI: GitHub Actions builds all envs in Docker; pushes to `wip` publish the `wip-latest` release (firmware + manifest)
+- [x] Pull updater: HTTPS check every 6 h, install while idle; Auto / Notify / Off; dashboard + console controls
+- [x] Web upload page (`/update`, basic auth) and ArduinoOTA, sharing the relays-off / flush / WDT guard
+- [x] Trial boot with automatic rollback (self-tests, 5 min uptime, WiFi reached); rolled-back builds are never auto-retried
+- [x] Partition table: app slots 1.5 → 1.75 MB for the TLS stack, LittleFS 832 → 320 KB, NVS offset kept; `boot_app0` moved out of NVS
+- [x] USB recovery keeps NVS (`flash.ps1` writes parts; `-Factory` for a full wipe)
+- [ ] First USB flash of this build on the real board, then prove on hardware: auto-install of a CI build, web upload, and a deliberate rollback (a build that fails a self-test)
+- [ ] Report update results somewhere an agent can read without LAN access (today: dashboard, console, MQTT `sw` version only)
+
 ## Phase 1 — Foundation (done)
 
 - [x] NTP time + timezone (WiFi via gitignored `secrets.h`; safe fallback hold when time is unknown)
@@ -60,7 +76,7 @@ Chosen: **keep the single C6 and get Zigbee and Matter through Home Assistant**.
 - [x] Local web dashboard on port 80: live status w/ provenance + health, mode buttons, hold form, fault/lockout reset, /api/* JSON endpoints
 - [x] MQTT climate entity with Home Assistant discovery (dual setpoints in °F, action/availability/LWT, outdoor + health sensors; HA setpoint changes map to temporary holds)
 - [x] **Aqara probe path A**: Zigbee2MQTT topics (secrets.h) → `sensors_injectRemote()` (indoor, w/ humidity) and `sensors_injectOutdoorProbe()` (outdoor); low-battery reports logged as health events
-- [x] OTA updates via ArduinoOTA (password-gated; relays off + data flushed + WDT released during flash)
+- [x] OTA updates via ArduinoOTA (password-gated; relays off + data flushed + WDT released during flash) — extended by Phase 0
 - [ ] Web schedule editor + AP-mode WiFi provisioning (secrets.h workflow covers until then)
 - [ ] Tech test wizard on web + downloadable service report (console service mode covers until then)
 
@@ -70,7 +86,7 @@ Chosen: **keep the single C6 and get Zigbee and Matter through Home Assistant**.
 - [x] Opto-input equipment feedback (24VAC sense on OPT1–3: heat/cool/fan call-proving + phantom-run detection, self-arming on first signal; OPT4 window contact logged) — strengthens the no-response rule from temp-trend inference to direct proof; field wiring still pending at install
 - [x] Persistent lockout/fault across reboots with explicit acknowledge (NVS-latched with trip reason; cleared only by `reset fault`/`reset lockout` on console or web)
 - [x] Event journal persisted to LittleFS (rotating, rate-limited; console `log file`); reset-reason logging on every boot
-- [ ] Host-native PlatformIO test env + CI (GitHub Actions running the Docker build + logic tests)
+- [ ] Host-native PlatformIO test env (CI already runs the Docker build of every env, Phase 0; logic tests still on-device only)
 - [x] LED blink-codes for fault classes (EVB user LED GPIO8: fault/lockout/service/health/heartbeat patterns)
 - [ ] **Hub-outage resilience**: today a remote probe going stale (>90 min) with no SHT4x fitted reads NAN, which latches a persistent FAULT with all relays (heat included) off. That fault survives the hub's recovery and needs a manual `reset fault`. Stale remote data should become a non-latching degraded state that clears on the next report and keeps freeze protection alive. Hardware backstop: fit the SHT4x so the existing local fallback takes over.
 

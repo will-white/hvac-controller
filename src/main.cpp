@@ -12,6 +12,7 @@
 #include "learning.h"
 #include "mqtt.h"
 #include "net_time.h"
+#include "netconfig.h"
 #include "ota.h"
 #include "relays.h"
 #include "sensors.h"
@@ -326,10 +327,12 @@ void setup() {
   ESP_ERROR_CHECK(ret);
 
   loadSettings();
+  netcfg_begin(); // network credentials: NVS, seeded from secrets.h when present
   // Filesystem init must come before the watchdog is armed: a first-boot
   // format can block far longer than the WDT timeout.
   initialize_learning();
   events_begin(); // flash journal (needs LittleFS); earlier events stay RAM-only
+  ota_begin();    // trial-boot / rollback bookkeeping (logs to the journal)
 
   if (systemInFaultState || systemLockedOut) {
     // Terse: the RAM ring caps messages at 56 chars and the reason must fit.
@@ -352,7 +355,9 @@ void setup() {
   }
   esp_task_wdt_add(NULL);
 
-  runTests();
+  // A trial (just-updated) image that fails its self-tests rolls back here,
+  // before any relay is driven.
+  ota_bootSelfTest(runTests());
 
   initRelays(); // EVB GPIO relays + MOD-IO2 I2C bus, everything driven off
   statusLed_begin();
@@ -379,7 +384,7 @@ void loop() {
   net_time_poll();  // WiFi reconnect state machine
   weather_poll();   // outdoor temp fetch (no-op without WiFi/coordinates)
   mqtt_poll();      // HA entity + Zigbee2MQTT probe ingestion (no-op unconfigured)
-  ota_poll();       // OTA updates (no-op without password)
+  ota_poll();       // WiFi updates: trial-boot verify, channel pull, espota
   web_poll();       // local dashboard (starts once WiFi is up)
 
   static unsigned long lastControlMs = 0;

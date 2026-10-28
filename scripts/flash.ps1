@@ -8,8 +8,14 @@
   Docker" rule still holds. Uses the esptool that already ships inside
   ~/.platformio/packages/tool-esptoolpy.
 
-  Writes firmware.factory.bin (bootloader + partitions + boot_app0 + app) at
-  offset 0x0, so a flash always lands the board in a fully consistent state.
+  For hvac_controller it writes bootloader, partition table and app at their
+  own offsets and erases otadata (so the board boots app0), leaving NVS alone:
+  settings, learned data, safety latches and WiFi/MQTT credentials survive.
+  This is the USB recovery path when a WiFi update goes wrong.
+
+  -Factory instead writes firmware.factory.bin at 0x0. The merged image fills
+  every gap with 0xFF, so that ERASES NVS. The standalone sketches (test_relays,
+  blank, ...) always flash this way; they use the board's default table.
 
 .EXAMPLE
   scripts\flash.ps1                              # build + flash main firmware
@@ -17,13 +23,16 @@
   scripts\flash.ps1 -Env test_relays             # relay hardware test
 .EXAMPLE
   scripts\flash.ps1 -Env blank -NoBuild          # flash an already-built sketch
+.EXAMPLE
+  scripts\flash.ps1 -Factory                     # full image: wipes settings too
 #>
 [CmdletBinding()]
 param(
     [string]$Env = 'hvac_controller',
     [string]$Port,
     [int]$Baud = 921600,
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [switch]$Factory
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,10 +42,13 @@ if (-not $NoBuild) {
     & (Join-Path $PSScriptRoot 'build.ps1') -Env $Env
 }
 
-$image = Join-Path $repo ".pio\build\$Env\firmware.factory.bin"
+$build = Join-Path $repo ".pio\build\$Env"
+$image = Join-Path $build 'firmware.factory.bin'
 if (-not (Test-Path $image)) {
     throw "No firmware image at $image. Build env '$Env' first (drop -NoBuild)."
 }
+# Offsets from partitions_4mb.csv (main firmware only).
+$parts = ($Env -eq 'hvac_controller') -and -not $Factory
 
 # The EVB enumerates as a native USB-Serial-JTAG device: VID 303A / PID 1001.
 if (-not $Port) {
@@ -53,10 +65,22 @@ if (-not (Test-Path $esptool)) {
     throw "esptool not found at $esptool. Install PlatformIO on the host, or flash from the devcontainer with usbipd."
 }
 
-Write-Host "Flashing $Env -> $Port" -ForegroundColor Cyan
 $env:PYTHONIOENCODING = 'utf-8'
-python $esptool --chip esp32c6 --port $Port --baud $Baud --after hard_reset `
-    write_flash -z 0x0 $image
+if ($parts) {
+    Write-Host "Flashing $Env -> $Port (NVS preserved)" -ForegroundColor Cyan
+    python $esptool --chip esp32c6 --port $Port --baud $Baud --after no_reset `
+        erase_region 0x11000 0x2000
+    if ($LASTEXITCODE -ne 0) { throw "esptool erase of otadata failed (exit $LASTEXITCODE)" }
+    python $esptool --chip esp32c6 --port $Port --baud $Baud --after hard_reset `
+        write_flash -z `
+        0x0 (Join-Path $build 'bootloader.bin') `
+        0x8000 (Join-Path $build 'partitions.bin') `
+        0x20000 (Join-Path $build 'firmware.bin')
+} else {
+    Write-Host "Flashing $Env -> $Port (full image at 0x0)" -ForegroundColor Cyan
+    python $esptool --chip esp32c6 --port $Port --baud $Baud --after hard_reset `
+        write_flash -z 0x0 $image
+}
 if ($LASTEXITCODE -ne 0) { throw "esptool failed (exit $LASTEXITCODE)" }
 
 Write-Host "Done. Monitor with: scripts\monitor.ps1 -Port $Port" -ForegroundColor Green

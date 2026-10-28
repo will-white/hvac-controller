@@ -1,0 +1,90 @@
+# Builds every firmware change in the repo's Docker image (same as
+# scripts/docker-build.sh locally). On pushes to `wip` it also publishes the
+# `wip-latest` prerelease: the update channel the thermostat polls
+# (OTA_CHANNEL_URL in src/config.h). Each published build installs itself on
+# the device in AUTO mode and runs on trial, rolling back if it fails.
+name: Firmware
+
+on:
+  push:
+    branches: [wip, main]
+    paths:
+      - 'src/**'
+      - 'platformio.ini'
+      - 'partitions_*.csv'
+      - 'scripts/docker-build.sh'
+      - 'scripts/version.py'
+      - '.devcontainer/Dockerfile'
+      - '.github/workflows/firmware.yml'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # publish the wip-latest release
+
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: false # never cut a publish in half
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # version.py counts commits
+
+      - name: Let the build container write the checkout
+        # The image runs as uid 1000; the runner checks out as uid 1001.
+        run: chmod -R a+rwX .
+
+      - name: Build main firmware
+        run: scripts/docker-build.sh -e hvac_controller
+
+      - name: Build standalone sketches
+        run: |
+          scripts/docker-build.sh -e test_relays
+          scripts/docker-build.sh -e blank
+
+      - name: Size report
+        run: |
+          B=.pio/build/hvac_controller
+          VER=$(sed -n 's/^#define FW_VERSION "\(.*\)"/\1/p' src/fw_version.h)
+          SIZE=$(stat -c %s $B/firmware.bin)
+          SLOT=$((0x1C0000)) # app0/app1 in partitions_4mb.csv
+          PCT=$((SIZE * 100 / SLOT))
+          {
+            echo "### Firmware $VER"
+            echo "firmware.bin: $SIZE bytes, ${PCT}% of the $SLOT-byte OTA slot"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$PCT" -ge 92 ]; then echo "::warning::firmware.bin uses ${PCT}% of its OTA slot"; fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ github.sha }}
+          path: |
+            .pio/build/hvac_controller/firmware.bin
+            .pio/build/hvac_controller/firmware.factory.bin
+            .pio/build/hvac_controller/bootloader.bin
+            .pio/build/hvac_controller/partitions.bin
+
+      - name: Publish to the wip-latest update channel
+        if: github.event_name == 'push' && github.ref == 'refs/heads/wip'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          B=.pio/build/hvac_controller
+          VER=$(sed -n 's/^#define FW_VERSION "\(.*\)"/\1/p' src/fw_version.h)
+          SHA=$(sed -n 's/^#define FW_GIT_SHA "\(.*\)"/\1/p' src/fw_version.h)
+          if [ "$SHA" != "$GITHUB_SHA" ]; then
+            echo "::error::build stamped '$SHA', expected $GITHUB_SHA (dirty tree?) - not publishing"
+            exit 1
+          fi
+          printf '{"sha": "%s", "version": "%s", "size": %d}\n' \
+            "$SHA" "$VER" "$(stat -c %s $B/firmware.bin)" > manifest.json
+          cp $B/firmware.bin $B/firmware.factory.bin $B/bootloader.bin $B/partitions.bin .
+          gh release delete wip-latest --cleanup-tag --yes || true
+          gh release create wip-latest --prerelease --target "$GITHUB_SHA" \
+            --title "wip $VER" \
+            --notes "Automatic build of ${GITHUB_SHA::7} from wip. The thermostat installs firmware.bin from here (AUTO update mode). USB recovery: scripts/flash.ps1 -NoBuild with these files in .pio/build/hvac_controller/." \
+            firmware.bin firmware.factory.bin bootloader.bin partitions.bin manifest.json

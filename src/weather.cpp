@@ -4,22 +4,15 @@
 #include "config.h"
 #include "events.h"
 #include "net_time.h"
+#include "netconfig.h"
 #include "sensors.h"
-
-#if __has_include("secrets.h")
-#include "secrets.h"
-#endif
-#ifndef WEATHER_LATITUDE
-#define WEATHER_LATITUDE  0.0
-#define WEATHER_LONGITUDE 0.0
-#endif
 
 static unsigned long lastFetchMs = 0;
 static bool everFetched = false;
 static bool lastFailed = false;
 
 void weather_poll() {
-  if (WEATHER_LATITUDE == 0.0 && WEATHER_LONGITUDE == 0.0) return; // not configured
+  if (netcfg().latitude == 0.0f && netcfg().longitude == 0.0f) return; // not configured
   if (!isWifiConnected()) return;
   unsigned long now = millis();
   if (everFetched && now - lastFetchMs < WEATHER_POLL_MINS * 60000UL) return;
@@ -31,7 +24,7 @@ void weather_poll() {
   snprintf(url, sizeof(url),
     "http://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f"
     "&current=temperature_2m&temperature_unit=fahrenheit",
-    (double)WEATHER_LATITUDE, (double)WEATHER_LONGITUDE);
+    (double)netcfg().latitude, (double)netcfg().longitude);
 
   // Blocking fetch, bounded well under the WDT window.
   HTTPClient http;

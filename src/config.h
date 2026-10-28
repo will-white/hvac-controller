@@ -230,7 +230,7 @@ const bool          ENABLE_OVERCOOL_DEHUMIDIFY      = true;
 const float         DEHUMIDIFY_RH_THRESHOLD         = 55.0;
 const float         DEHUMIDIFY_OVERCOOL_MAX_F       = 1.5;
 
-// -- Weather (outdoor temperature via open-meteo; coordinates in secrets.h) --
+// -- Weather (outdoor temperature via open-meteo; coordinates in netconfig) --
 // Outdoor priority: a LOCAL probe (Zigbee via Zigbee2MQTT, Phase 4) always
 // beats the regional weather API while its report is fresh.
 const unsigned long WEATHER_POLL_MINS               = 10;
@@ -249,5 +249,20 @@ static const char   EVENT_JOURNAL_FILE[]            = "/event_journal.log";
 static const char   EVENT_JOURNAL_OLD_FILE[]        = "/event_journal.old"; // one retained generation
 const unsigned long EVENT_JOURNAL_MAX_BYTES         = 49152; // rotate current -> .old beyond this
 const int           EVENT_JOURNAL_MAX_PER_MIN       = 30;    // flash-wear cap (`sim speed` storms)
+
+// -- Firmware updates over WiFi (ota.cpp) --
+// Release channel CI publishes on every firmware push to `wip`: manifest.json
+// ({"sha","version"}) plus firmware.bin. Public repo, so no token is needed.
+static const char   OTA_CHANNEL_URL[]               = "https://github.com/will-white/hvac-controller/releases/download/wip-latest/";
+const unsigned long OTA_FIRST_CHECK_DELAY_MS        = 2UL * 60UL * 1000UL; // after WiFi comes up
+const unsigned long OTA_CHECK_INTERVAL_HOURS        = 6;
+const unsigned long OTA_RETRY_MINS                  = 60;   // after a failed check or install
+const unsigned long OTA_INSTALL_TIMEOUT_MS          = 5UL * 60UL * 1000UL; // abandon a stalled download
+// A freshly installed image runs on trial. It is kept only after the boot
+// self-tests pass and it has run OTA_VERIFY_MINS (and reached WiFi, when WiFi
+// is configured). A crash, WDT reset, failed test, or no WiFi by
+// OTA_VERIFY_TIMEOUT_MINS reverts to the previous image.
+const unsigned long OTA_VERIFY_MINS                 = 5;
+const unsigned long OTA_VERIFY_TIMEOUT_MINS         = 15;
 
 #endif // CONFIG_H

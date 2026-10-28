@@ -1,10 +1,17 @@
 # ESP32-C6-EVB carries the ESP32-C6-WROOM-1-N4 module = 4MB flash (per the
 # Olimex manual), even though the esp32-c6-devkitc-1 board definition claims
 # 8MB — so this table is sized for the REAL 4MB. Dual OTA slots for updates.
+#
+# 2026-10: app slots grown 1.5MB -> 1.75MB for the HTTPS updater (TLS stack +
+# CA bundle ~ +300KB); LittleFS shrunk 832KB -> 320KB (the firmware caps its
+# own use at ~160KB: 64KB learning log + 2x48KB event journal). nvs and
+# otadata keep their offsets so stored settings survive the change; LittleFS
+# moved, so it reformats once. boot_app0 must target otadata's offset: see
+# board_upload.arduino.boot_app0 in platformio.ini.
 # Name,     Type, SubType,  Offset,   Size
 nvs,        data, nvs,      0x9000,   0x8000
 otadata,    data, ota,      0x11000,  0x2000
-app0,       app,  ota_0,    0x20000,  0x180000
-app1,       app,  ota_1,    0x1A0000, 0x180000
-spiffs,     data, spiffs,   0x320000, 0xD0000
+app0,       app,  ota_0,    0x20000,  0x1C0000
+app1,       app,  ota_1,    0x1E0000, 0x1C0000
+spiffs,     data, spiffs,   0x3A0000, 0x50000
 coredump,   data, coredump, 0x3F0000, 0x10000
