@@ -4,6 +4,27 @@ Goal: the best single-zone smart thermostat we can build on the Olimex
 ESP32-C6-EVB + MOD-IO2 stack — locally controlled, safe by construction,
 serviceable by an HVAC tech, and genuinely smarter than commercial stats.
 
+## Architecture decision (2026-10-28)
+
+Required: a WiFi-hosted site/app, Zigbee temperature sensors, and Matter.
+Chosen: **keep the single C6 and get Zigbee and Matter through Home Assistant**.
+
+- **Web UI/API**: served by the thermostat itself over WiFi (built, Phase 4).
+- **Zigbee sensors**: Aqara path A, i.e. probes join Zigbee2MQTT and reach the
+  thermostat over MQTT (built). This also keeps the sensors usable by HA and
+  everything else, because a Zigbee device can join only one network, and a
+  native coordinator on the thermostat would own them.
+- **Matter**: no Matter stack in the firmware. HA's Matter bridge (or
+  Matterbridge) re-exposes the MQTT climate entity to Apple Home / Google /
+  Alexa. Firmware cost: none.
+- **Consequence**: indoor sensing now depends on HA/Z2M/broker/WiFi staying up,
+  so surviving a hub outage is a Phase 5 requirement (below).
+- **Rejected for now**: native Zigbee + Matter on one 4 MB C6 (app + ZBOSS +
+  Matter ≈ 2.5–3 MB per copy, plus unproven 3-way radio sharing). If the
+  thermostat later has to work without a hub, the path is a second chip
+  (H2/C6) as a dedicated Zigbee coordinator over UEXT UART, which is Espressif's
+  reference gateway split.
+
 ## Phase 1 — Foundation (done)
 
 - [x] NTP time + timezone (WiFi via gitignored `secrets.h`; safe fallback hold when time is unknown)
@@ -50,14 +71,15 @@ serviceable by an HVAC tech, and genuinely smarter than commercial stats.
 - [x] Event journal persisted to LittleFS (rotating, rate-limited; console `log file`); reset-reason logging on every boot
 - [ ] Host-native PlatformIO test env + CI (GitHub Actions running the Docker build + logic tests)
 - [x] LED blink-codes for fault classes (EVB user LED GPIO8: fault/lockout/service/health/heartbeat patterns)
+- [ ] **Hub-outage resilience**: today a remote probe going stale (>90 min) with no SHT4x fitted reads NAN, which latches a persistent FAULT with all relays (heat included) off. That fault survives the hub's recovery and needs a manual `reset fault`. Stale remote data should become a non-latching degraded state that clears on the next report and keeps freeze protection alive. Hardware backstop: fit the SHT4x so the existing local fallback takes over.
 
 ## Phase 6 — Differentiators
 
 - [ ] CO₂ sensor (SCD40 on UEXT) → demand-controlled ventilation with the fresh-air damper
-- [ ] **Aqara probe path B**: C6 as native Zigbee coordinator — no hub needed. **Feasibility spike run 2026-08-14** (`zigbee_spike` env, kept in-tree for re-runs): toolchain fully works under pioarduino (`-DZIGBEE_MODE_ZCZR` + zb partitions; coordinator forms a network on-device; `ZigbeeThermostat` endpoint receives temp+RH — no hand-rolled ZCL parsing needed). **Cost finding**: the ZBOSS ZCZR stack adds ~388 KB flash / ~19 KB RAM → full firmware would be ~1.6 MB, so on the 4 MB module **Zigbee coordinator and dual-slot OTA are mutually exclusive** (single ~3 MB app fits easily; any OTA does not). **Unresolved**: RF-level WiFi coexistence quality — now measurable: the bench board's WiFi is healthy. (A long 2026-08-14 debug chased apparently-dead WiFi RX — empty scans, STA NO_AP_FOUND, failed client associations, per-boot deaf/alive lottery — through frameworks, calibration, beacon formats, channels, and silicon theories. **Root cause: an inadequate USB power supply/cable.** On a good supply the same board hears ~700 beacons/10 s across six SSIDs, every boot. Lesson, now standing policy: for flaky embedded RF, check power delivery FIRST. The `zigbee_spike_baseline` env's beacon-rate sniffer is the 2-minute RF health check: healthy = hundreds of beacons/10 s.) Espressif rates WiFi-STA + router-role 802.15.4 coex "conditionally stable" and recommends dual-SoC for gateways; community reports are negative. **Verdict: stay on path A (Zigbee2MQTT) as primary; revisit path B only if dropping OTA (or moving to an 8 MB module / second C6 as a dedicated coordinator) is acceptable — after the antenna question is resolved.**
+- [ ] **Aqara probe path B**: C6 as native Zigbee coordinator — no hub needed. **Feasibility spike run 2026-08-14** (`zigbee_spike` env, kept in-tree for re-runs): toolchain fully works under pioarduino (`-DZIGBEE_MODE_ZCZR` + zb partitions; coordinator forms a network on-device; `ZigbeeThermostat` endpoint receives temp+RH — no hand-rolled ZCL parsing needed). **Cost finding**: the ZBOSS ZCZR stack adds ~388 KB flash / ~19 KB RAM → full firmware would be ~1.6 MB, so on the 4 MB module **Zigbee coordinator and dual-slot OTA are mutually exclusive** (single ~3 MB app fits easily; any OTA does not). **Unresolved**: RF-level WiFi coexistence quality — now measurable: the bench board's WiFi is healthy. (A long 2026-08-14 debug chased apparently-dead WiFi RX — empty scans, STA NO_AP_FOUND, failed client associations, per-boot deaf/alive lottery — through frameworks, calibration, beacon formats, channels, and silicon theories. **Root cause: an inadequate USB power supply/cable.** On a good supply the same board hears ~700 beacons/10 s across six SSIDs, every boot. Lesson, now standing policy: for flaky embedded RF, check power delivery FIRST. The `zigbee_spike_baseline` env's beacon-rate sniffer is the 2-minute RF health check: healthy = hundreds of beacons/10 s.) Espressif rates WiFi-STA + router-role 802.15.4 coex "conditionally stable" and recommends dual-SoC for gateways; community reports are negative. **Verdict: stay on path A (Zigbee2MQTT) as primary; revisit path B only if dropping OTA (or moving to an 8 MB module / second C6 as a dedicated coordinator) is acceptable — after the antenna question is resolved.** *Correction (2026-10-28): "mutually exclusive" holds only for the current table. LittleFS is 832 KB but the firmware caps its use at ~250 KB (64 KB learning log, 2×48 KB journal), so a re-partition (256 KB LittleFS + zb areas) leaves ~1.77 MB per OTA slot vs the ~1.6 MB estimate. That estimate is spike delta + current build, not a measured full build. Radio coexistence stays the real blocker. Moot under the 2026-10-28 architecture decision.*
 - [ ] Multi-room: several probes with averaging/weighting (and occupancy weighting later)
 - [ ] Equipment profiles: 2-stage heat (spare relay as W2), heat pump w/ O/B + aux lockout temps
-- [ ] Matter support (stretch)
+- [ ] Matter: via Home Assistant's Matter bridge, no firmware stack (see the architecture decision). Verify that the MQTT climate entity's dual setpoints, mode and action map cleanly to the Matter thermostat cluster
 - [ ] Occupancy learning from the manual-adjustment log
 
 ## Standing invariants

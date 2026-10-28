@@ -68,7 +68,7 @@ All hardware and time access goes through wrappers — `writeRelay`/`readRelay` 
 
 ### Current gaps
 
-`analyze_and_learn_if_needed()` in `learning.cpp` is still a placeholder — the manual-adjustment log accumulates but nothing consumes it. Outdoor temperature still has no local hardware probe; `sensors_injectOutdoorProbe()` exists but nothing calls it, so outdoor data comes from the weather feed alone and `readOutdoorTemperature()` falls back to NAN (cleanly disabling the economizer) whenever that feed goes stale. See ROADMAP.md for the full phase plan.
+`analyze_and_learn_if_needed()` in `learning.cpp` is still a placeholder — the manual-adjustment log accumulates but nothing consumes it. Outdoor temperature has no wired local probe; `sensors_injectOutdoorProbe()` is fed only by a Zigbee2MQTT outdoor topic (`mqtt.cpp`) or the console `outdoor` command, otherwise outdoor data comes from the weather feed alone and `readOutdoorTemperature()` falls back to NAN (cleanly disabling the economizer) whenever both go stale. A stale remote indoor probe with no SHT4x fitted latches a persistent FAULT (heat off until `reset fault`), which is a known gap given the hub-based architecture (ROADMAP.md, architecture decision). See ROADMAP.md for the full phase plan.
 
 Flash: custom `partitions_4mb.csv` (dual 1.5 MB OTA slots) sized for the EVB's REAL 4 MB WROOM-1-N4 module — the `esp32-c6-devkitc-1` board def wrongly claims 8 MB; never size partitions past 4 MB (confirmed on hardware 2026-08-14: flash device ID `4016` = 4 MB). App is at ~76% of its slot.
 
