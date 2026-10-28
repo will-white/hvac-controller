@@ -38,13 +38,16 @@ jobs:
         # The image runs as uid 1000; the runner checks out as uid 1001.
         run: chmod -R a+rwX .
 
-      - name: Build main firmware
-        run: scripts/docker-build.sh -e hvac_controller
-
       - name: Build standalone sketches
         run: |
           scripts/docker-build.sh -e test_relays
           scripts/docker-build.sh -e blank
+
+      # Last on purpose: its pre-script creates src/fw_version.h, and a new
+      # header in src/ changes PlatformIO's project checksum, which wipes all
+      # of .pio/build on the next `pio run` (taking this env's output with it).
+      - name: Build main firmware
+        run: scripts/docker-build.sh -e hvac_controller
 
       - name: Size report
         run: |
