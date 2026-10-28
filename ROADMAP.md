@@ -42,6 +42,8 @@ agent-made ones) reach the thermostat over WiFi, with USB as the fallback.
 - [ ] First USB flash of this build on the real board, then prove on hardware: auto-install of a CI build, web upload, and a deliberate rollback (a build that fails a self-test)
 - [ ] Report update results somewhere an agent can read without LAN access (today: dashboard, console, MQTT `sw` version only)
 
+**Flash budget** (revisit when the app slot passes ~90%; CI's size report warns at 92%): firmware.bin is ~85% of its 1.75 MB slot as of r16. Settings don't count against it: they live in NVS (32 KB, roughly 5–10% used by schedule, learned rates, health counters and network settings). Levers, cheapest first: drop ArduinoOTA + mDNS now that pull and upload cover it (~45 KB); move the updater onto the HTTPClient already linked for weather (~40 KB); pin GitHub's root CAs instead of the full IDF bundle (~60 KB, but a GitHub CA change then breaks updates until a USB flash). Native Zigbee/Matter/BLE stacks do not fit alongside dual OTA slots.
+
 ## Phase 1 — Foundation (done)
 
 - [x] NTP time + timezone (WiFi via gitignored `secrets.h`; safe fallback hold when time is unknown)
