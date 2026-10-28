@@ -65,6 +65,8 @@ static void printStatus() {
   Serial.printf("Mode: %s%s | fault:%d lockout:%d | service:%d\n",
     systemMode == SYS_OFF ? "OFF" : systemMode == SYS_HEAT ? "HEAT" : systemMode == SYS_COOL ? "COOL" : "AUTO",
     vacationModeActive ? " (VACATION)" : "", systemInFaultState, systemLockedOut, testMode);
+  if (indoorReadingMissing)
+    Serial.println("NO INDOOR READING: probe stale and no local sensor - equipment off, resumes when one reports.");
   if ((systemInFaultState || systemLockedOut) && g_safetyReason[0])
     Serial.printf("Safety latch reason: %s (persists across reboot until 'reset fault'/'reset lockout')\n", g_safetyReason);
   Serial.printf("Targets: heat-to %.1fF / cool-to %.1fF  [%s]%s\n",

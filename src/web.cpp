@@ -81,7 +81,7 @@ temp.textContent=s.temp;rh.textContent=s.rh;outdoor.textContent=s.outdoor;osrc.t
 hsp.textContent=s.heatSp;csp.textContent=s.coolSp;src.textContent=s.src;action.textContent=s.action;
 health.textContent=s.health;
 relays.innerHTML=s.relays.map(r=>'<span class="pill'+(r.on?' on':'')+'">'+r.n+'</span>').join('');
-flags.textContent=(s.fault?'FAULT ':'')+(s.lockout?'LOCKOUT ':'')+(s.service?'SERVICE-MODE ':'')+(s.why?'('+s.why+')':'');
+flags.textContent=(s.noReading?'NO-INDOOR-READING ':'')+(s.fault?'FAULT ':'')+(s.lockout?'LOCKOUT ':'')+(s.service?'SERVICE-MODE ':'')+(s.why?'('+s.why+')':'');
 for(const m of ['off','heat','cool','auto'])document.getElementById('m_'+m).className=(s.mode==m)?'active':'';
 fw.textContent=s.fw;upd.textContent=s.upd;u_install.hidden=!s.updAvail;u_install.textContent='Install '+s.updAvail;
 for(const m of ['auto','notify','off'])document.getElementById('u_'+m).className=(s.updMode==m)?'active':'';
@@ -97,7 +97,7 @@ static const char* modeName(SystemMode m) {
 static void handleStatus() {
   static const char* names[RELAY_COUNT] = {"heat", "cool", "fan", "damper", "hum", "spare"};
   const char* action = "idle";
-  if (systemInFaultState || systemMode == SYS_OFF) action = "off";
+  if (systemInFaultState || indoorReadingMissing || systemMode == SYS_OFF) action = "off";
   else if (readRelay(HEATER_RELAY)) action = "heating";
   else if (readRelay(COOLER_RELAY)) action = "cooling";
   else if (readRelay(FAN_RELAY)) action = "fan";
@@ -117,7 +117,7 @@ static void handleStatus() {
     "\"heatSp\":%.1f,\"coolSp\":%.1f,\"src\":\"%s\",\"mode\":\"%s\",\"action\":\"%s\","
     "\"relays\":[%s],\"fault\":%d,\"lockout\":%d,\"service\":%d,\"health\":%d,"
     "\"why\":\"%s\",\"rssi\":%d,\"uptime\":%lu,"
-    "\"fw\":\"%s\",\"updMode\":\"%s\",\"upd\":\"%s\",\"updAvail\":\"%s\",\"verifying\":%d}",
+    "\"fw\":\"%s\",\"updMode\":\"%s\",\"upd\":\"%s\",\"updAvail\":\"%s\",\"verifying\":%d,\"noReading\":%d}",
     lastIndoorF, isnan(rh) ? -1.0f : rh, isnan(outdoor) ? -99.0f : outdoor,
     sensors_outdoorSource(), lastResolved.heatSetpointF, lastResolved.coolSetpointF,
     targetSourceName(lastResolved.source), modeName(systemMode), action, relays,
@@ -127,7 +127,7 @@ static void handleStatus() {
     (int)WiFi.RSSI(), millis() / 1000UL,
     // update strings are built from versions, numbers and esp_err names only
     FW_VERSION, ota_modeName(ota_mode()), ota_statusText(), ota_availableVersion(),
-    ota_verifying() ? 1 : 0);
+    ota_verifying() ? 1 : 0, indoorReadingMissing ? 1 : 0);
   server.send(200, "application/json", buf);
 }
 

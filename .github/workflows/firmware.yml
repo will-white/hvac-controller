@@ -1,5 +1,5 @@
-# Builds every firmware change in the repo's Docker image (same as
-# scripts/docker-build.sh locally). On pushes to `wip` it also publishes the
+# Runs the native tests, then builds every firmware change in the repo's
+# Docker image (same as scripts/native-test.sh + scripts/docker-build.sh). On pushes to `wip` it also publishes the
 # `wip-latest` prerelease: the update channel the thermostat polls
 # (OTA_CHANNEL_URL in src/config.h). Each published build installs itself on
 # the device in AUTO mode and runs on trial, rolling back if it fails.
@@ -14,6 +14,8 @@ on:
       - 'partitions_*.csv'
       - 'scripts/docker-build.sh'
       - 'scripts/version.py'
+      - 'scripts/native-test.sh'
+      - 'test/native/**'
       - '.devcontainer/Dockerfile'
       - '.github/workflows/firmware.yml'
   pull_request:
@@ -37,6 +39,15 @@ jobs:
       - name: Let the build container write the checkout
         # The image runs as uid 1000; the runner checks out as uid 1001.
         run: chmod -R a+rwX .
+
+      # Control logic + on-device unit suite + scenario tests on the host
+      # (g++, ASan/UBSan). A failure stops the job before anything is built
+      # or published to the update channel.
+      - name: Native tests
+        # GCC 12's ASan breaks on the runner kernel's 32-bit mmap ASLR entropy.
+        run: |
+          sudo sysctl -w vm.mmap_rnd_bits=28
+          scripts/native-test.sh
 
       - name: Build standalone sketches
         run: |

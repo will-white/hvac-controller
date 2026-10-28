@@ -32,6 +32,7 @@ TempUnit tempUnit = DEFAULT_TEMP_UNIT;
 SystemMode systemMode = DEFAULT_SYSTEM_MODE;
 bool vacationModeActive = false;
 bool systemInFaultState = false;
+bool indoorReadingMissing = false;
 bool systemLockedOut = false; // Shared with logic module
 
 ResolvedTargets lastResolved = { NO_TIME_FALLBACK_HEAT_F, NO_TIME_FALLBACK_COOL_F,
@@ -192,14 +193,12 @@ bool validateSensorReadings(float indoorTempF) {
 // =================================================================
 // ==                     CONTROL TICK                            ==
 // =================================================================
-static void controlTick() {
+void controlTick() {
   static int tickCount = 0;
   tickCount++;
 
   if (systemInFaultState) {
-    writeRelay(HEATER_RELAY, LOW); writeRelay(COOLER_RELAY, LOW);
-    writeRelay(FAN_RELAY, LOW);    writeRelay(FRESH_AIR_RELAY, LOW);
-    writeRelay(HUMIDITY_RELAY, LOW);
+    stopAllEquipment();
     if (tickCount % 6 == 1) {
       Serial.println("System in FAULT state - all relays off. Fix the cause, then `reset fault` on the console.");
     }
@@ -224,8 +223,29 @@ static void controlTick() {
     return;
   }
 
+  // Commissioned but no reading right now: the probe went stale (hub, broker or
+  // WiFi down) and no local sensor answers. That is a gap in data, not a broken
+  // sensor, so it must NOT latch: hold the equipment off and resume on its own
+  // when any source reports again (the reading is re-validated below).
+  if (isnan(indoorF)) {
+    if (!indoorReadingMissing) {
+      indoorReadingMissing = true;
+      logEvent("no indoor reading: equipment held off");
+    }
+    stopAllEquipment();
+    if (tickCount % 6 == 1) {
+      Serial.println("No indoor reading (probe stale, no local sensor) - equipment off until one reports.");
+    }
+    return;
+  }
+  if (indoorReadingMissing) {
+    indoorReadingMissing = false;
+    logEvent("indoor reading back (%.1fF): control resumes", indoorF);
+  }
+
   if (!validateSensorReadings(indoorF)) {
     systemInFaultState = true;
+    stopAllEquipment(); // now, not on the next tick 5 s later
     logEvent("FAULT: indoor sensor implausible (%.1fF)", indoorF);
     saveSafetyState("indoor sensor implausible");
     return;

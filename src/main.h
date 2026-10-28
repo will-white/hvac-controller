@@ -8,6 +8,9 @@ extern Schedule programSchedule;
 extern HvacPerformance performance;
 extern bool systemLockedOut;
 extern bool systemInFaultState;
+// Non-latching: commissioned indoor sensing currently has no reading (probe
+// stale, no local fallback). Equipment is held off until a source reports.
+extern bool indoorReadingMissing;
 extern bool vacationModeActive;
 extern TempUnit tempUnit;
 extern SystemMode systemMode;
@@ -31,6 +34,7 @@ void savePerformance();    // learned data blob only (batched)
 // reboots until explicitly acknowledged. Rare events — wear is negligible.
 // Call with the trip reason when latching, nullptr when acknowledging.
 void saveSafetyState(const char* reason);
+void controlTick();        // one 5 s control pass (exposed for the native scenario tests)
 int getCurrentSeason();
 
 #endif // MAIN_H

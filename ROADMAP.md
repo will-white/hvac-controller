@@ -88,9 +88,10 @@ agent-made ones) reach the thermostat over WiFi, with USB as the fallback.
 - [x] Opto-input equipment feedback (24VAC sense on OPT1–3: heat/cool/fan call-proving + phantom-run detection, self-arming on first signal; OPT4 window contact logged) — strengthens the no-response rule from temp-trend inference to direct proof; field wiring still pending at install
 - [x] Persistent lockout/fault across reboots with explicit acknowledge (NVS-latched with trip reason; cleared only by `reset fault`/`reset lockout` on console or web)
 - [x] Event journal persisted to LittleFS (rotating, rate-limited; console `log file`); reset-reason logging on every boot
-- [ ] Host-native PlatformIO test env (CI already runs the Docker build of every env, Phase 0; logic tests still on-device only)
+- [x] Native test harness (`scripts/native-test.sh`): logic modules + the on-device suite + multi-tick scenario tests under g++ ASan/UBSan; runs in CI before anything is published
 - [x] LED blink-codes for fault classes (EVB user LED GPIO8: fault/lockout/service/health/heartbeat patterns)
-- [ ] **Hub-outage resilience**: today a remote probe going stale (>90 min) with no SHT4x fitted reads NAN, which latches a persistent FAULT with all relays (heat included) off. That fault survives the hub's recovery and needs a manual `reset fault`. Stale remote data should become a non-latching degraded state that clears on the next report and keeps freeze protection alive. Hardware backstop: fit the SHT4x so the existing local fallback takes over.
+- [x] **Hub-outage resilience, part 1**: a stale probe with no local sensor no longer latches a FAULT; `indoorReadingMissing` holds equipment off and control resumes by itself on the next report (scenario-tested). Also fixed: the fault/lockout paths now record off-times (compressor min-off held across `reset fault`), and an implausible reading cuts the relays on the same tick instead of 5 s later.
+- [ ] **Hub-outage resilience, part 2**: a local fallback sensor so a long outage still gets freeze protection. Choice depends on where the controller mounts: an SHT4x on a short pigtail outside the enclosure if it sits in the living space; a DS18B20 (1-Wire, long cable runs, e.g. over the old thermostat wire) if it sits at the air handler. A board-mounted SHT4x near the furnace would steer the house by furnace-room air.
 
 ## Phase 6 — Differentiators
 

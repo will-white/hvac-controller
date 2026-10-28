@@ -98,6 +98,23 @@ void resetLockout() {
   coolerMaxRunTriggers = 0;
 }
 
+// Cut every output with the same off-time bookkeeping a normal cycle end does,
+// so min-off protection (compressor!) still holds when control resumes after a
+// fault or a gap in indoor readings. Writes unconditionally every call: that
+// also re-asserts mask 0 on the MOD-IO2, which holds whatever it was last told.
+void stopAllEquipment() {
+  unsigned long now = currentTime();
+  if (readRelay(HEATER_RELAY)) lastHeaterOffTime = now;
+  if (readRelay(COOLER_RELAY)) lastCoolerOffTime = now;
+  writeRelay(HEATER_RELAY, LOW);
+  writeRelay(COOLER_RELAY, LOW);
+  writeRelay(FAN_RELAY, LOW);
+  writeRelay(FRESH_AIR_RELAY, LOW);
+  writeRelay(HUMIDITY_RELAY, LOW);
+  freshAirPurpose = FA_NONE;
+  cycleStartTime = 0; // an interrupted cycle is not a performance sample
+}
+
 bool coolerMinOffElapsed() {
   return currentTime() - lastCoolerOffTime > MIN_COOLER_OFF_TIME_MS;
 }
@@ -113,8 +130,10 @@ bool getActiveCycleInfo(bool& isHeating, unsigned long& startTime, float& startT
 
 void controlTemperature(float tempC, float heatTargetC, float coolTargetC, float outdoorTempC, SystemMode mode) {
   if (systemLockedOut) {
-    if(readRelay(HEATER_RELAY)) writeRelay(HEATER_RELAY, LOW);
-    if(readRelay(COOLER_RELAY)) writeRelay(COOLER_RELAY, LOW);
+    // Record the off-times: after `reset lockout` the min-off timers must
+    // still protect the equipment.
+    if(readRelay(HEATER_RELAY)) { writeRelay(HEATER_RELAY, LOW); lastHeaterOffTime = currentTime(); }
+    if(readRelay(COOLER_RELAY)) { writeRelay(COOLER_RELAY, LOW); lastCoolerOffTime = currentTime(); }
     if(readRelay(FRESH_AIR_RELAY)) writeRelay(FRESH_AIR_RELAY, LOW);
     freshAirPurpose = FA_NONE;
     return;

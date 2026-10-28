@@ -21,7 +21,7 @@ void statusLed_begin() {
 
 void statusLed_poll() {
   uint16_t pat;
-  if (systemInFaultState)                pat = PAT_FAULT;
+  if (systemInFaultState || indoorReadingMissing) pat = PAT_FAULT; // equipment held off
   else if (systemLockedOut)              pat = PAT_LOCKOUT;
   else if (console_testModeActive())     pat = PAT_SERVICE;
   else if (health_warningCount() > 0)    pat = PAT_HEALTH;

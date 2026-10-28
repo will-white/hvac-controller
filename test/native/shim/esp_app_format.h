@@ -1,0 +1,3 @@
+#pragma once
+#define ESP_IMAGE_HEADER_MAGIC 0xE9
+#define ESP_CHIP_ID_ESP32C6 0x000D

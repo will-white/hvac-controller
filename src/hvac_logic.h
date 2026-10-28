@@ -14,6 +14,7 @@ void controlHumidity(float humidity, float indoorTempC, float outdoorTempC);
 void updatePerformanceData(bool isHeating);
 int getPerformanceBin(float tempF);
 void resetLockout();           // console `reset lockout`
+void stopAllEquipment();       // all outputs off, min-off timers updated (fault, no reading)
 bool coolerMinOffElapsed();    // service-mode compressor guard
 // Health monitoring: expose the in-flight cycle (relay on + start snapshot).
 bool getActiveCycleInfo(bool& isHeating, unsigned long& startTime, float& startTempF);
